@@ -129,3 +129,49 @@ body {
   font-size: 12px;
   letter-spacing: 2px;
 }
+
+/* ── Menu buttons row ───────────────────────────────────────── */
+.menu-btns {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn-online {
+  border-color: #44aaff;
+  color: #44aaff;
+}
+
+.btn-online:hover {
+  background: #44aaff;
+  color: #04040a;
+}
+
+/* ── Lobby ──────────────────────────────────────────────────── */
+.lobby h2 {
+  font-size: 28px;
+  letter-spacing: 6px;
+  color: #fff;
+}
+
+.room-code {
+  font-size: 14px;
+  color: #666;
+  letter-spacing: 3px;
+}
+
+.room-code strong {
+  color: #fff;
+  font-size: 20px;
+}
+
+.player-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 16px;
+  min-height: 60px;
+  text-align: center;
+}

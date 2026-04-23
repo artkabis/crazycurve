@@ -5,12 +5,13 @@ import {
   ROUNDS_TO_WIN,
   COUNTDOWN_SECONDS,
   ROUND_OVER_DELAY_MS,
+  getPalette,
 } from './constants.ts';
 import { CollisionSystem } from './systems/CollisionSystem.ts';
 import { ScoreSystem } from './systems/ScoreSystem.ts';
 import { Curve } from './entities/Curve.ts';
 import { TypedEventEmitter } from './EventEmitter.ts';
-import type { GamePhase, GameEvents, InputState } from './types.ts';
+import type { GamePhase, GameEvents, InputState, IGameState, CurveRenderData } from './types.ts';
 
 function randomSpawn(index: number, total: number): { x: number; y: number; angle: number } {
   const margin = 100;
@@ -22,9 +23,9 @@ function randomSpawn(index: number, total: number): { x: number; y: number; angl
   };
 }
 
-export class GameEngine extends TypedEventEmitter<GameEvents> {
+export class GameEngine extends TypedEventEmitter<GameEvents> implements IGameState {
   readonly collision = new CollisionSystem();
-  readonly scores = new ScoreSystem();
+  readonly scores: ScoreSystem;
   readonly curves: Curve[];
 
   phase: GamePhase = 'menu';
@@ -35,9 +36,18 @@ export class GameEngine extends TypedEventEmitter<GameEvents> {
   private roundOverAt = 0;
   private roundOverHandled = false;
 
-  constructor() {
+  // Default: 2-player local game. Server passes custom playerIds.
+  constructor(playerIds: readonly number[] = PLAYER_CONFIGS.map((p) => p.id)) {
     super();
-    this.curves = PLAYER_CONFIGS.map((cfg) => new Curve(cfg.id, cfg.color));
+    this.scores = new ScoreSystem(playerIds);
+    this.curves = playerIds.map((id) => {
+      const cfg = getPalette(id);
+      return new Curve(cfg.id, cfg.color);
+    });
+  }
+
+  getScore(playerId: number): number {
+    return this.scores.getScore(playerId);
   }
 
   startGame(): void {
@@ -78,7 +88,6 @@ export class GameEngine extends TypedEventEmitter<GameEvents> {
   private tickCountdown(now: number): void {
     const elapsed = now - this.countdownStart;
     const remaining = Math.ceil(COUNTDOWN_SECONDS - elapsed / 1000);
-
     if (remaining !== this.countdown) {
       this.countdown = Math.max(1, remaining);
     }
@@ -127,3 +136,6 @@ export class GameEngine extends TypedEventEmitter<GameEvents> {
     this.emit('phaseChange', phase);
   }
 }
+
+// Re-export CurveRenderData so renderers can import from one place
+export type { CurveRenderData };

@@ -1,15 +1,15 @@
-import { PLAYER_CONFIGS } from '../constants.ts';
-
 export class ScoreSystem {
   private readonly scores = new Map<number, number>();
 
-  constructor() {
-    this.reset();
+  constructor(playerIds: readonly number[]) {
+    for (const id of playerIds) {
+      this.scores.set(id, 0);
+    }
   }
 
   reset(): void {
-    for (const cfg of PLAYER_CONFIGS) {
-      this.scores.set(cfg.id, 0);
+    for (const id of this.scores.keys()) {
+      this.scores.set(id, 0);
     }
   }
 

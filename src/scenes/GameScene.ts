@@ -39,7 +39,11 @@ export class GameScene {
     );
 
     this.engine.update(inputs, performance.now());
+
+    // Clear newPoints BEFORE drawing so each frame only paints new segments
     this.trailLayer.drawNewPoints(this.engine.curves);
-    this.renderer.renderFrame();
+    for (const curve of this.engine.curves) curve.newPoints = [];
+
+    this.renderer.renderFrame(this.engine);
   }
 }

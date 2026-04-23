@@ -1,12 +1,12 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import type { Application } from 'pixi.js';
-import { ARENA_WIDTH, ARENA_HEIGHT, PLAYER_CONFIGS } from '../core/constants.ts';
-import type { GameEngine } from '../core/GameEngine.ts';
+import { ARENA_WIDTH, ARENA_HEIGHT, PLAYER_PALETTE } from '../core/constants.ts';
+import type { IGameState } from '../core/types.ts';
 import type { TrailLayer } from './TrailLayer.ts';
 
 /**
  * Owns the PixiJS scene graph.
- * Called once per animation frame to sync visual state with GameEngine.
+ * Accepts IGameState — works with local GameEngine or network NetworkGameState.
  */
 export class GameRenderer {
   private readonly headGraphics = new Map<number, Graphics>();
@@ -17,10 +17,9 @@ export class GameRenderer {
 
   constructor(
     app: Application,
-    private readonly engine: GameEngine,
     trailLayer: TrailLayer,
+    playerIds: readonly number[],
   ) {
-    // ── Scene graph ────────────────────────────────────────────
     const border = new Graphics();
     border.rect(1, 1, ARENA_WIDTH - 2, ARENA_HEIGHT - 2).stroke({ color: 0x222222, width: 2 });
 
@@ -35,23 +34,24 @@ export class GameRenderer {
     app.stage.addChild(overlayLayer);
 
     // ── Curve head dots ────────────────────────────────────────
-    for (const cfg of PLAYER_CONFIGS) {
+    for (const id of playerIds) {
       const g = new Graphics();
       headsLayer.addChild(g);
-      this.headGraphics.set(cfg.id, g);
+      this.headGraphics.set(id, g);
     }
 
     // ── Score HUD ──────────────────────────────────────────────
-    for (const cfg of PLAYER_CONFIGS) {
+    playerIds.forEach((id, idx) => {
+      const palette = PLAYER_PALETTE.find((p) => p.id === id)!;
       const t = new Text({
-        text: `${cfg.name}: 0`,
-        style: new TextStyle({ fontFamily: 'Courier New', fontSize: 13, fill: cfg.color }),
+        text: `${palette.name}: 0`,
+        style: new TextStyle({ fontFamily: 'Courier New', fontSize: 13, fill: palette.color }),
       });
-      t.x = 10 + (cfg.id - 1) * 130;
+      t.x = 10 + idx * 130;
       t.y = ARENA_HEIGHT - 22;
       hudLayer.addChild(t);
-      this.scoreTexts.set(cfg.id, t);
-    }
+      this.scoreTexts.set(id, t);
+    });
 
     this.roundLabel = new Text({
       text: '',
@@ -83,38 +83,39 @@ export class GameRenderer {
 
     overlayLayer.addChild(this.dimOverlay);
     overlayLayer.addChild(this.centerText);
-
     this.setOverlayVisible(false);
   }
 
-  renderFrame(): void {
-    this.syncHeads();
-    this.syncHUD();
-    this.syncOverlay();
+  renderFrame(state: IGameState): void {
+    this.syncHeads(state);
+    this.syncHUD(state);
+    this.syncOverlay(state);
   }
 
-  private syncHeads(): void {
-    for (const curve of this.engine.curves) {
-      const g = this.headGraphics.get(curve.id)!;
+  private syncHeads(state: IGameState): void {
+    for (const curve of state.curves) {
+      const g = this.headGraphics.get(curve.id);
+      if (!g) continue;
       g.clear();
       if (!curve.alive) continue;
       g.circle(curve.x, curve.y, curve.trailRadius + 2).fill({ color: 0xffffff });
     }
   }
 
-  private syncHUD(): void {
-    for (const cfg of PLAYER_CONFIGS) {
-      this.scoreTexts.get(cfg.id)!.text = `${cfg.name}: ${this.engine.scores.getScore(cfg.id)}`;
+  private syncHUD(state: IGameState): void {
+    for (const [id, text] of this.scoreTexts) {
+      const palette = PLAYER_PALETTE.find((p) => p.id === id)!;
+      text.text = `${palette.name}: ${state.getScore(id)}`;
     }
-    this.roundLabel.text = `Round ${this.engine.round}`;
+    this.roundLabel.text = `Round ${state.round}`;
   }
 
-  private syncOverlay(): void {
-    const { phase } = this.engine;
+  private syncOverlay(state: IGameState): void {
+    const { phase } = state;
 
     if (phase === 'countdown') {
       this.setOverlayVisible(true);
-      this.centerText.text = String(Math.max(1, this.engine.countdown));
+      this.centerText.text = String(Math.max(1, state.countdown));
       this.centerText.style.fontSize = 96;
       this.centerText.style.fill = 0xffffff;
       return;
@@ -122,12 +123,12 @@ export class GameRenderer {
 
     if (phase === 'round_over') {
       this.setOverlayVisible(true);
-      const winner = this.engine.curves.find((c) => c.alive);
-      const cfg = PLAYER_CONFIGS.find((p) => p.id === winner?.id);
+      const winner = state.curves.find((c) => c.alive);
+      const palette = PLAYER_PALETTE.find((p) => p.id === winner?.id);
       this.centerText.style.fontSize = 40;
-      if (cfg) {
-        this.centerText.text = `${cfg.name} wins the round!`;
-        this.centerText.style.fill = cfg.color;
+      if (palette) {
+        this.centerText.text = `${palette.name} wins the round!`;
+        this.centerText.style.fill = palette.color;
       } else {
         this.centerText.text = 'Draw!';
         this.centerText.style.fill = 0xffffff;
@@ -138,8 +139,8 @@ export class GameRenderer {
     this.setOverlayVisible(false);
   }
 
-  private setOverlayVisible(visible: boolean): void {
-    this.dimOverlay.visible = visible;
-    this.centerText.visible = visible;
+  private setOverlayVisible(v: boolean): void {
+    this.dimOverlay.visible = v;
+    this.centerText.visible = v;
   }
 }

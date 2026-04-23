@@ -2,7 +2,7 @@ export class MenuScene {
   private readonly el: HTMLDivElement;
   private readonly onEnter: (e: KeyboardEvent) => void;
 
-  constructor(onStart: () => void) {
+  constructor(onLocal: () => void, onOnline: () => void) {
     this.el = document.createElement('div');
     this.el.className = 'overlay menu';
     this.el.innerHTML = `
@@ -11,14 +11,19 @@ export class MenuScene {
         <span style="color:#ff4466"><strong>P1</strong> &nbsp;← →</span>
         <span style="color:#44aaff"><strong>P2</strong> &nbsp;A D</span>
       </div>
-      <button class="btn-action" id="cc-start">▶ &nbsp;PLAY</button>
-      <p class="hint">or press Enter</p>
+      <div class="menu-btns">
+        <button class="btn-action" id="cc-local">▶ &nbsp;LOCAL (2P)</button>
+        <button class="btn-action btn-online" id="cc-online">⬡ &nbsp;ONLINE</button>
+      </div>
+      <p class="hint">Local : press Enter &nbsp;·&nbsp; Online : click or O</p>
     `;
 
-    this.el.querySelector('#cc-start')!.addEventListener('click', onStart);
+    this.el.querySelector('#cc-local')!.addEventListener('click', onLocal);
+    this.el.querySelector('#cc-online')!.addEventListener('click', onOnline);
 
     this.onEnter = (e: KeyboardEvent) => {
-      if (e.key === 'Enter') onStart();
+      if (e.key === 'Enter') onLocal();
+      if (e.key === 'o' || e.key === 'O') onOnline();
     };
     window.addEventListener('keydown', this.onEnter);
   }
