@@ -31,10 +31,12 @@ export interface CurveRenderData {
   readonly id: number;
   readonly x: number;
   readonly y: number;
+  readonly angle: number;
   readonly alive: boolean;
   readonly inGap: boolean;
   readonly trailRadius: number;
   readonly ghostTrail: boolean;
+  readonly activeEffects: readonly PowerUpType[];
   newPoints: Vec2[];
 }
 

@@ -69,6 +69,10 @@ export class Curve {
     return this.gapActive;
   }
 
+  get activeEffects(): readonly PowerUpType[] {
+    return [...this.effects.keys()];
+  }
+
   applyEffect(type: PowerUpType, expiresAtTick: number): void {
     this.effects.set(type, expiresAtTick);
     this.recalcEffects();

@@ -16,6 +16,7 @@ export interface PlayerSnapshot {
   inGap: boolean;
   trailRadius: number;
   ghostTrail: boolean;
+  activeEffects: PowerUpType[];
 }
 
 export interface PickupSnapshot {

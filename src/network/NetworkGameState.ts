@@ -1,11 +1,13 @@
 import { TRAIL_RADIUS } from '../core/constants.ts';
-import type { GamePhase, IGameState, CurveRenderData, Vec2, PickupRenderData } from '../core/types.ts';
+import type { GamePhase, IGameState, CurveRenderData, Vec2, PickupRenderData, PowerUpType } from '../core/types.ts';
 import type { TickPayload } from './protocol.ts';
 
 class ShadowCurve implements CurveRenderData {
   trailRadius: number;
   ghostTrail = false;
+  activeEffects: PowerUpType[] = [];
   newPoints: Vec2[] = [];
+  angle = 0;
 
   constructor(
     readonly id: number,
@@ -66,10 +68,12 @@ export class NetworkGameState implements IGameState {
 
       shadow.x = snap.x;
       shadow.y = snap.y;
+      shadow.angle = snap.angle;
       shadow.alive = snap.alive;
       shadow.inGap = snap.inGap;
       shadow.trailRadius = snap.trailRadius;
       shadow.ghostTrail = snap.ghostTrail;
+      shadow.activeEffects = snap.activeEffects;
 
       shadow.newPoints =
         snap.alive && !snap.inGap && !snap.ghostTrail ? [{ x: snap.x, y: snap.y }] : [];

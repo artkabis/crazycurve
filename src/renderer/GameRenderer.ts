@@ -1,7 +1,7 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import type { Application } from 'pixi.js';
-import { ARENA_WIDTH, ARENA_HEIGHT, PLAYER_PALETTE } from '../core/constants.ts';
-import type { IGameState } from '../core/types.ts';
+import { ARENA_WIDTH, ARENA_HEIGHT, PLAYER_PALETTE, POWERUP_CONFIGS } from '../core/constants.ts';
+import type { IGameState, PowerUpType } from '../core/types.ts';
 import type { TrailLayer } from './TrailLayer.ts';
 import { PowerUpLayer } from './PowerUpLayer.ts';
 
@@ -12,6 +12,11 @@ export class GameRenderer {
   private readonly centerText: Text;
   private readonly roundLabel: Text;
   private readonly powerUpLayer: PowerUpLayer;
+
+  // Effect badges: pre-allocated one Text per (player, effect type)
+  private readonly effectContainers = new Map<number, Container>();
+  private readonly effectSprites = new Map<number, Map<PowerUpType, Text>>();
+  private readonly prevEffectKeys = new Map<number, string>();
 
   constructor(
     app: Application,
@@ -34,33 +39,65 @@ export class GameRenderer {
     app.stage.addChild(hudLayer);
     app.stage.addChild(overlayLayer);
 
+    // ── Curve head dots ────────────────────────────────────────
     for (const id of playerIds) {
       const g = new Graphics();
       headsLayer.addChild(g);
       this.headGraphics.set(id, g);
     }
 
+    // ── Score + effect HUD ─────────────────────────────────────
     playerIds.forEach((id, idx) => {
       const palette = PLAYER_PALETTE.find((p) => p.id === id)!;
-      const t = new Text({
+      const baseX = 10 + idx * 140;
+
+      // Score label
+      const score = new Text({
         text: `${palette.name}: 0`,
         style: new TextStyle({ fontFamily: 'Courier New', fontSize: 13, fill: palette.color }),
       });
-      t.x = 10 + idx * 130;
-      t.y = ARENA_HEIGHT - 22;
-      hudLayer.addChild(t);
-      this.scoreTexts.set(id, t);
+      score.x = baseX;
+      score.y = ARENA_HEIGHT - 20;
+      hudLayer.addChild(score);
+      this.scoreTexts.set(id, score);
+
+      // Effect badges container (above score)
+      const effectContainer = new Container();
+      effectContainer.x = baseX;
+      effectContainer.y = ARENA_HEIGHT - 34;
+      hudLayer.addChild(effectContainer);
+      this.effectContainers.set(id, effectContainer);
+
+      // Pre-allocate one Text per power-up type, hidden by default
+      const sprites = new Map<PowerUpType, Text>();
+      for (const cfg of POWERUP_CONFIGS) {
+        const t = new Text({
+          text: cfg.label,
+          style: new TextStyle({
+            fontFamily: 'Courier New',
+            fontSize: 9,
+            fontWeight: 'bold',
+            fill: cfg.color,
+          }),
+        });
+        t.visible = false;
+        effectContainer.addChild(t);
+        sprites.set(cfg.type, t);
+      }
+      this.effectSprites.set(id, sprites);
     });
 
+    // ── Round label ────────────────────────────────────────────
     this.roundLabel = new Text({
       text: '',
       style: new TextStyle({ fontFamily: 'Courier New', fontSize: 13, fill: 0x555555 }),
     });
     this.roundLabel.anchor.set(1, 1);
     this.roundLabel.x = ARENA_WIDTH - 10;
-    this.roundLabel.y = ARENA_HEIGHT - 8;
+    this.roundLabel.y = ARENA_HEIGHT - 6;
     hudLayer.addChild(this.roundLabel);
 
+    // ── Phase overlay ──────────────────────────────────────────
     this.dimOverlay = new Graphics();
     this.dimOverlay.rect(0, 0, ARENA_WIDTH, ARENA_HEIGHT).fill({ color: 0x000000, alpha: 0.55 });
 
@@ -87,18 +124,32 @@ export class GameRenderer {
   renderFrame(state: IGameState): void {
     this.syncHeads(state);
     this.syncHUD(state);
+    this.syncEffects(state);
     this.syncOverlay(state);
     this.powerUpLayer.update(state.pickups);
   }
 
   private syncHeads(state: IGameState): void {
+    const showArrow = state.phase === 'countdown';
+
     for (const curve of state.curves) {
       const g = this.headGraphics.get(curve.id);
       if (!g) continue;
       g.clear();
       if (!curve.alive) continue;
+
       const alpha = curve.ghostTrail ? 0.35 : 1;
       g.circle(curve.x, curve.y, curve.trailRadius + 2).fill({ color: 0xffffff, alpha });
+
+      // Direction arrow shown during countdown
+      if (showArrow) {
+        const len = 22;
+        const ax = curve.x + Math.cos(curve.angle) * len;
+        const ay = curve.y + Math.sin(curve.angle) * len;
+        g.moveTo(curve.x, curve.y)
+          .lineTo(ax, ay)
+          .stroke({ color: 0xffffff, width: 1.5, alpha: 0.55 });
+      }
     }
   }
 
@@ -108,6 +159,36 @@ export class GameRenderer {
       text.text = `${palette.name}: ${state.getScore(id)}`;
     }
     this.roundLabel.text = `Round ${state.round}`;
+  }
+
+  private syncEffects(state: IGameState): void {
+    for (const [id, container] of this.effectContainers) {
+      const curve = state.curves.find((c) => c.id === id);
+      const effectKey = curve ? [...curve.activeEffects].sort().join(',') : '';
+
+      // Skip redraw if nothing changed
+      if (effectKey === this.prevEffectKeys.get(id)) continue;
+      this.prevEffectKeys.set(id, effectKey);
+
+      const sprites = this.effectSprites.get(id)!;
+
+      // Hide all first
+      for (const s of sprites.values()) s.visible = false;
+
+      if (!curve || curve.activeEffects.length === 0) continue;
+
+      // Show active effects in config order, positioned left-to-right
+      let xOffset = 0;
+      for (const cfg of POWERUP_CONFIGS) {
+        if (!curve.activeEffects.includes(cfg.type)) continue;
+        const t = sprites.get(cfg.type)!;
+        t.visible = true;
+        t.x = xOffset;
+        xOffset += t.width + 4;
+      }
+
+      container.visible = xOffset > 0;
+    }
   }
 
   private syncOverlay(state: IGameState): void {

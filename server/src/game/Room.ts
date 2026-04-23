@@ -132,6 +132,7 @@ export class Room {
         inGap: c.inGap,
         trailRadius: c.trailRadius,
         ghostTrail: c.ghostTrail,
+        activeEffects: [...c.activeEffects],
       })),
       events: this.pendingEvents,
       scores,
