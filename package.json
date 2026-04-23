@@ -4,32 +4,35 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview",
-    "lint": "eslint src server/src",
-    "format": "prettier --write src server/src",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "server": "tsx server/src/server.ts",
-    "server:dev": "tsx watch server/src/server.ts"
+    "dev":          "vite",
+    "build":        "tsc -b && vite build",
+    "preview":      "vite preview",
+    "lint":         "eslint src server/src",
+    "format":       "prettier --write src server/src",
+    "test":         "vitest run",
+    "test:watch":   "vitest",
+    "server:dev":   "tsx watch server/src/server.ts",
+    "server:build": "esbuild server/src/server.ts --bundle --platform=node --target=node22 --outfile=server/dist/server.cjs --external:express --external:socket.io",
+    "build:all":    "npm run build && npm run server:build",
+    "start":        "NODE_ENV=production node server/dist/server.cjs"
   },
   "dependencies": {
-    "express": "^4.21.2",
-    "pixi.js": "^8.6.6",
-    "socket.io": "^4.8.1",
+    "express":       "^4.21.2",
+    "pixi.js":       "^8.6.6",
+    "socket.io":     "^4.8.1",
     "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
-    "@eslint/js": "^9.17.0",
-    "@types/express": "^5.0.0",
-    "@types/node": "^22.10.0",
-    "eslint": "^9.17.0",
-    "prettier": "^3.4.2",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.3",
+    "@eslint/js":        "^9.17.0",
+    "@types/express":    "^5.0.0",
+    "@types/node":       "^22.10.0",
+    "esbuild":           "^0.25.0",
+    "eslint":            "^9.17.0",
+    "prettier":          "^3.4.2",
+    "tsx":               "^4.19.2",
+    "typescript":        "^5.7.3",
     "typescript-eslint": "^8.20.0",
-    "vite": "^6.0.7",
-    "vitest": "^2.1.8"
+    "vite":              "^6.0.7",
+    "vitest":            "^2.1.8"
   }
 }

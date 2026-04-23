@@ -19,7 +19,8 @@ export class NetworkManager {
 
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.socket = io({ transports: ['websocket'] });
+      // Allow polling fallback — required for O2Switch Passenger which may block raw WS upgrades
+      this.socket = io({ transports: ['websocket', 'polling'] });
 
       this.socket.once('connect', () => resolve());
       this.socket.once('connect_error', (err) => reject(err));
