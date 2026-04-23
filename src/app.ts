@@ -1,5 +1,5 @@
 import { Application } from 'pixi.js';
-import { ARENA_WIDTH, ARENA_HEIGHT, PLAYER_CONFIGS } from './core/constants.ts';
+import { ARENA_WIDTH, ARENA_HEIGHT } from './core/constants.ts';
 import { GameEngine } from './core/GameEngine.ts';
 import { TrailLayer } from './renderer/TrailLayer.ts';
 import { GameRenderer } from './renderer/GameRenderer.ts';

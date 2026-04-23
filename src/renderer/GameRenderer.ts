@@ -16,7 +16,7 @@ export class GameRenderer {
   private readonly roundLabel: Text;
 
   constructor(
-    private readonly app: Application,
+    app: Application,
     private readonly engine: GameEngine,
     trailLayer: TrailLayer,
   ) {
