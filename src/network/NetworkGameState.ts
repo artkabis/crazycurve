@@ -1,10 +1,10 @@
 import { TRAIL_RADIUS } from '../core/constants.ts';
-import type { GamePhase, IGameState, CurveRenderData, Vec2 } from '../core/types.ts';
+import type { GamePhase, IGameState, CurveRenderData, Vec2, PickupRenderData } from '../core/types.ts';
 import type { TickPayload } from './protocol.ts';
 
-/** Mutable shadow curve updated from server snapshots */
 class ShadowCurve implements CurveRenderData {
-  readonly trailRadius = TRAIL_RADIUS;
+  trailRadius: number;
+  ghostTrail = false;
   newPoints: Vec2[] = [];
 
   constructor(
@@ -13,13 +13,12 @@ class ShadowCurve implements CurveRenderData {
     public y: number,
     public alive: boolean,
     public inGap: boolean,
-  ) {}
+    trailRadius = TRAIL_RADIUS,
+  ) {
+    this.trailRadius = trailRadius;
+  }
 }
 
-/**
- * Client-side authoritative state built from server tick payloads.
- * Implements IGameState so GameRenderer can accept it without modification.
- */
 export class NetworkGameState implements IGameState {
   phase: GamePhase = 'countdown';
   round = 0;
@@ -27,6 +26,7 @@ export class NetworkGameState implements IGameState {
 
   private readonly shadowMap = new Map<number, ShadowCurve>();
   private readonly scoreMap = new Map<number, number>();
+  private _pickups: PickupRenderData[] = [];
 
   constructor(playerIds: readonly number[]) {
     for (const id of playerIds) {
@@ -39,11 +39,14 @@ export class NetworkGameState implements IGameState {
     return [...this.shadowMap.values()];
   }
 
+  get pickups(): readonly PickupRenderData[] {
+    return this._pickups;
+  }
+
   getScore(playerId: number): number {
     return this.scoreMap.get(playerId) ?? 0;
   }
 
-  /** Apply a server tick — updates state and marks new trail points. */
   applyTick(payload: TickPayload): void {
     this.phase = payload.phase;
     this.round = payload.round;
@@ -54,20 +57,27 @@ export class NetworkGameState implements IGameState {
     }
 
     for (const snap of payload.players) {
-      const shadow = this.shadowMap.get(snap.id);
-      if (!shadow) continue;
+      let shadow = this.shadowMap.get(snap.id);
+      if (!shadow) {
+        shadow = new ShadowCurve(snap.id, snap.x, snap.y, snap.alive, snap.inGap, snap.trailRadius);
+        this.shadowMap.set(snap.id, shadow);
+        this.scoreMap.set(snap.id, 0);
+      }
 
       shadow.x = snap.x;
       shadow.y = snap.y;
       shadow.alive = snap.alive;
       shadow.inGap = snap.inGap;
+      shadow.trailRadius = snap.trailRadius;
+      shadow.ghostTrail = snap.ghostTrail;
 
-      // Only paint trail when alive and not in gap
-      shadow.newPoints = snap.alive && !snap.inGap ? [{ x: snap.x, y: snap.y }] : [];
+      shadow.newPoints =
+        snap.alive && !snap.inGap && !snap.ghostTrail ? [{ x: snap.x, y: snap.y }] : [];
     }
+
+    this._pickups = payload.pickups;
   }
 
-  /** Call after TrailLayer has consumed newPoints each render frame. */
   clearNewPoints(): void {
     for (const shadow of this.shadowMap.values()) {
       shadow.newPoints = [];

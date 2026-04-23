@@ -118,17 +118,18 @@ export class App {
         color: 0xffffff,
         colorHex: '#ffffff',
       };
+      const lobbyPlayers: PlayerInfo[] = [selfInfo];
       lobby.addPlayer(selfInfo);
       this.showOverlay(lobby);
 
-      this.network.on('player_joined', (p) => lobby.addPlayer(p));
+      this.network.on('player_joined', (p) => { lobby.addPlayer(p); lobbyPlayers.push(p); });
       this.network.on('player_left', (id) => lobby.removePlayer(id));
 
       this.network.on('game_start', () => {
         lobby.unmount();
         this.activeOverlay = undefined;
 
-        const playerIds = [payload.yourPlayerId]; // will grow from player_joined events
+        const playerIds = lobbyPlayers.map((p) => p.id);
         const netRenderer = new GameRenderer(this.pixiApp, this.trailLayer, playerIds);
         const netScene = new NetworkGameScene(
           this.pixiApp, this.network, this.input, this.trailLayer, netRenderer,

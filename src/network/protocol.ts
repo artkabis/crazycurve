@@ -1,6 +1,4 @@
-import type { GamePhase } from '../core/types.ts';
-
-// ── Shared payload types ────────────────────────────────────────
+import type { GamePhase, PowerUpType } from '../core/types.ts';
 
 export interface PlayerInfo {
   id: number;
@@ -16,6 +14,15 @@ export interface PlayerSnapshot {
   angle: number;
   alive: boolean;
   inGap: boolean;
+  trailRadius: number;
+  ghostTrail: boolean;
+}
+
+export interface PickupSnapshot {
+  id: number;
+  x: number;
+  y: number;
+  type: PowerUpType;
 }
 
 export type NetGameEvent =
@@ -31,6 +38,7 @@ export interface TickPayload {
   players: PlayerSnapshot[];
   events: NetGameEvent[];
   scores: Record<number, number>;
+  pickups: PickupSnapshot[];
 }
 
 export interface RoomJoinedPayload {
@@ -39,16 +47,12 @@ export interface RoomJoinedPayload {
   players: PlayerInfo[];
 }
 
-// ── Socket.io event maps ────────────────────────────────────────
-
-/** Events sent from Client → Server */
 export interface ClientToServerEvents {
   join: (payload: { name: string; roomId?: string }) => void;
   input: (payload: { tick: number; left: boolean; right: boolean }) => void;
   ready: () => void;
 }
 
-/** Events sent from Server → Client */
 export interface ServerToClientEvents {
   room_joined: (payload: RoomJoinedPayload) => void;
   player_joined: (player: PlayerInfo) => void;

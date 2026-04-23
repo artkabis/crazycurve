@@ -7,7 +7,14 @@ import {
   MIN_PLAYERS,
   MAX_PLAYERS,
 } from '../../../src/core/constants.ts';
-import type { ClientToServerEvents, ServerToClientEvents, PlayerInfo, TickPayload, NetGameEvent } from '../../../src/network/protocol.ts';
+import type {
+  ClientToServerEvents,
+  ServerToClientEvents,
+  PlayerInfo,
+  TickPayload,
+  NetGameEvent,
+  PickupSnapshot,
+} from '../../../src/network/protocol.ts';
 
 type IoServer = Server<ClientToServerEvents, ServerToClientEvents>;
 type RoomSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -20,7 +27,7 @@ interface RoomPlayer {
 
 export class Room {
   readonly id: string;
-  private readonly players = new Map<string, RoomPlayer>(); // socketId → player
+  private readonly players = new Map<string, RoomPlayer>();
   private engine: GameEngine | null = null;
   private tickInterval: ReturnType<typeof setInterval> | null = null;
   private tick = 0;
@@ -73,7 +80,6 @@ export class Room {
     const playerIds = [...this.players.values()].map((p) => p.info.id);
     this.engine = new GameEngine(playerIds);
 
-    // Wire engine events → pending events buffer
     this.engine.on('playerDied', (id) => this.pendingEvents.push({ type: 'player_died', playerId: id }));
     this.engine.on('roundOver', (id) => this.pendingEvents.push({ type: 'round_over', winnerId: id ?? null }));
     this.engine.on('gameOver', (id) => this.pendingEvents.push({ type: 'game_over', winnerId: id }));
@@ -105,7 +111,6 @@ export class Room {
 
     engine.update(inputs, performance.now());
 
-    // Flush new trail points (server bitmap only; clients render their own)
     for (const curve of engine.curves) curve.newPoints = [];
 
     const scores: Record<number, number> = {};
@@ -119,10 +124,18 @@ export class Room {
       round: engine.round,
       countdown: engine.countdown,
       players: engine.curves.map((c) => ({
-        id: c.id, x: c.x, y: c.y, angle: c.angle, alive: c.alive, inGap: c.inGap,
+        id: c.id,
+        x: c.x,
+        y: c.y,
+        angle: c.angle,
+        alive: c.alive,
+        inGap: c.inGap,
+        trailRadius: c.trailRadius,
+        ghostTrail: c.ghostTrail,
       })),
       events: this.pendingEvents,
       scores,
+      pickups: engine.pickups as PickupSnapshot[],
     };
 
     this.io.to(this.id).emit('tick', payload);

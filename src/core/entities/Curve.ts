@@ -8,7 +8,7 @@ import {
   GAP_DURATION_MAX,
   STARTUP_GAP_FRAMES,
 } from '../constants.ts';
-import type { InputState, Vec2 } from '../types.ts';
+import type { InputState, Vec2, PowerUpType } from '../types.ts';
 import type { CollisionSystem } from '../systems/CollisionSystem.ts';
 
 function randInt(min: number, max: number): number {
@@ -28,12 +28,17 @@ export class Curve {
   turnRate = TURN_RATE;
   trailRadius = TRAIL_RADIUS;
 
+  inverseControls = false;
+  frozen = false;
+  ghostTrail = false;
+
+  private effects = new Map<PowerUpType, number>(); // type → expiresAtTick
+
   private gapActive = true;
   private gapTimer = 0;
   private gapDuration = STARTUP_GAP_FRAMES;
   private nextGapIn = 0;
 
-  /** New solid points added this tick — consumed by the renderer. */
   newPoints: Vec2[] = [];
 
   constructor(id: number, color: number) {
@@ -46,6 +51,10 @@ export class Curve {
     this.y = y;
     this.angle = angle;
     this.alive = true;
+    this.effects.clear();
+    this.inverseControls = false;
+    this.frozen = false;
+    this.ghostTrail = false;
     this.speed = PLAYER_SPEED;
     this.turnRate = TURN_RATE;
     this.trailRadius = TRAIL_RADIUS;
@@ -60,20 +69,61 @@ export class Curve {
     return this.gapActive;
   }
 
+  applyEffect(type: PowerUpType, expiresAtTick: number): void {
+    this.effects.set(type, expiresAtTick);
+    this.recalcEffects();
+  }
+
+  tickEffects(currentTick: number): void {
+    let changed = false;
+    for (const [type, exp] of this.effects) {
+      if (currentTick >= exp) {
+        this.effects.delete(type);
+        changed = true;
+      }
+    }
+    if (changed) this.recalcEffects();
+  }
+
+  teleport(x: number, y: number, newAngle: number): void {
+    this.x = x;
+    this.y = y;
+    this.angle = newAngle;
+    // Brief gap so the teleported curve doesn't immediately self-collide
+    this.gapActive = true;
+    this.gapTimer = 0;
+    this.gapDuration = 20;
+  }
+
+  private recalcEffects(): void {
+    this.inverseControls = this.effects.has('reverse');
+    this.frozen = this.effects.has('freeze');
+    this.ghostTrail = this.effects.has('ghost');
+    this.speed = this.effects.has('speed_boost') ? PLAYER_SPEED * 1.7
+               : this.effects.has('slow')        ? PLAYER_SPEED * 0.5
+               : PLAYER_SPEED;
+    this.trailRadius = this.effects.has('thin')  ? TRAIL_RADIUS * 0.5
+                     : this.effects.has('thick') ? TRAIL_RADIUS * 2.5
+                     : TRAIL_RADIUS;
+  }
+
   update(input: InputState, collision: CollisionSystem): void {
     if (!this.alive) return;
+    if (this.frozen) return;
 
     this.newPoints = [];
 
-    if (input.left) this.angle -= this.turnRate;
-    if (input.right) this.angle += this.turnRate;
+    const left  = this.inverseControls ? input.right : input.left;
+    const right = this.inverseControls ? input.left  : input.right;
+
+    if (left)  this.angle -= this.turnRate;
+    if (right) this.angle += this.turnRate;
 
     const nx = this.x + Math.cos(this.angle) * this.speed;
     const ny = this.y + Math.sin(this.angle) * this.speed;
 
-    // Check collision at new position before painting
-    const hitWall = collision.checkWall(nx, ny);
-    const hitTrail = !this.gapActive && collision.checkTrail(nx, ny);
+    const hitWall  = collision.checkWall(nx, ny, this.trailRadius);
+    const hitTrail = !this.gapActive && !this.ghostTrail && collision.checkTrail(nx, ny);
 
     if (hitWall || hitTrail) {
       this.alive = false;
@@ -84,7 +134,9 @@ export class Curve {
     this.y = ny;
 
     if (!this.gapActive) {
-      collision.paint(this.x, this.y, this.id);
+      if (!this.ghostTrail) {
+        collision.paint(this.x, this.y, this.id, this.trailRadius);
+      }
       this.newPoints.push({ x: this.x, y: this.y });
     }
 

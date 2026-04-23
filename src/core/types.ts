@@ -10,7 +10,23 @@ export interface InputState {
 
 export type GamePhase = 'menu' | 'countdown' | 'playing' | 'round_over' | 'game_over';
 
-// Minimal shape required by renderers — satisfied by both Curve (local) and ShadowCurve (network)
+export type PowerUpType =
+  | 'speed_boost'
+  | 'slow'
+  | 'reverse'
+  | 'freeze'
+  | 'ghost'
+  | 'thin'
+  | 'thick'
+  | 'teleport';
+
+export interface PickupRenderData {
+  id: number;
+  x: number;
+  y: number;
+  type: PowerUpType;
+}
+
 export interface CurveRenderData {
   readonly id: number;
   readonly x: number;
@@ -18,19 +34,19 @@ export interface CurveRenderData {
   readonly alive: boolean;
   readonly inGap: boolean;
   readonly trailRadius: number;
+  readonly ghostTrail: boolean;
   newPoints: Vec2[];
 }
 
-// Common state interface — implemented by GameEngine (local) and NetworkGameState (online)
 export interface IGameState {
   readonly phase: GamePhase;
   readonly round: number;
   readonly countdown: number;
   readonly curves: readonly CurveRenderData[];
+  readonly pickups: readonly PickupRenderData[];
   getScore(playerId: number): number;
 }
 
-// Events emitted by GameEngine
 export type GameEvents = {
   phaseChange: [phase: GamePhase];
   playerDied: [playerId: number];

@@ -18,7 +18,7 @@ export class NetworkGameScene {
     private readonly trailLayer: TrailLayer,
     private readonly renderer: GameRenderer,
     playerIds: readonly number[],
-    private readonly myPlayerId: number,
+    _myPlayerId: number,
   ) {
     this.state = new NetworkGameState(playerIds);
   }
@@ -69,7 +69,5 @@ export class NetworkGameScene {
     this.state.clearNewPoints();
 
     this.renderer.renderFrame(this.state);
-
-    void this.myPlayerId; // referenced to avoid unused-var lint error
   }
 }

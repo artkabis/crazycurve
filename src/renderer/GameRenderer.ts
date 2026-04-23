@@ -3,17 +3,15 @@ import type { Application } from 'pixi.js';
 import { ARENA_WIDTH, ARENA_HEIGHT, PLAYER_PALETTE } from '../core/constants.ts';
 import type { IGameState } from '../core/types.ts';
 import type { TrailLayer } from './TrailLayer.ts';
+import { PowerUpLayer } from './PowerUpLayer.ts';
 
-/**
- * Owns the PixiJS scene graph.
- * Accepts IGameState — works with local GameEngine or network NetworkGameState.
- */
 export class GameRenderer {
   private readonly headGraphics = new Map<number, Graphics>();
   private readonly scoreTexts = new Map<number, Text>();
   private readonly dimOverlay: Graphics;
   private readonly centerText: Text;
   private readonly roundLabel: Text;
+  private readonly powerUpLayer: PowerUpLayer;
 
   constructor(
     app: Application,
@@ -27,20 +25,21 @@ export class GameRenderer {
     const hudLayer = new Container();
     const overlayLayer = new Container();
 
+    this.powerUpLayer = new PowerUpLayer();
+
     app.stage.addChild(border);
     app.stage.addChild(trailLayer.sprite);
+    app.stage.addChild(this.powerUpLayer.displayObject);
     app.stage.addChild(headsLayer);
     app.stage.addChild(hudLayer);
     app.stage.addChild(overlayLayer);
 
-    // ── Curve head dots ────────────────────────────────────────
     for (const id of playerIds) {
       const g = new Graphics();
       headsLayer.addChild(g);
       this.headGraphics.set(id, g);
     }
 
-    // ── Score HUD ──────────────────────────────────────────────
     playerIds.forEach((id, idx) => {
       const palette = PLAYER_PALETTE.find((p) => p.id === id)!;
       const t = new Text({
@@ -62,7 +61,6 @@ export class GameRenderer {
     this.roundLabel.y = ARENA_HEIGHT - 8;
     hudLayer.addChild(this.roundLabel);
 
-    // ── Phase overlay ──────────────────────────────────────────
     this.dimOverlay = new Graphics();
     this.dimOverlay.rect(0, 0, ARENA_WIDTH, ARENA_HEIGHT).fill({ color: 0x000000, alpha: 0.55 });
 
@@ -90,6 +88,7 @@ export class GameRenderer {
     this.syncHeads(state);
     this.syncHUD(state);
     this.syncOverlay(state);
+    this.powerUpLayer.update(state.pickups);
   }
 
   private syncHeads(state: IGameState): void {
@@ -98,7 +97,8 @@ export class GameRenderer {
       if (!g) continue;
       g.clear();
       if (!curve.alive) continue;
-      g.circle(curve.x, curve.y, curve.trailRadius + 2).fill({ color: 0xffffff });
+      const alpha = curve.ghostTrail ? 0.35 : 1;
+      g.circle(curve.x, curve.y, curve.trailRadius + 2).fill({ color: 0xffffff, alpha });
     }
   }
 

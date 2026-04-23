@@ -9,9 +9,10 @@ import {
 } from './constants.ts';
 import { CollisionSystem } from './systems/CollisionSystem.ts';
 import { ScoreSystem } from './systems/ScoreSystem.ts';
+import { PowerUpSystem } from './systems/PowerUpSystem.ts';
 import { Curve } from './entities/Curve.ts';
 import { TypedEventEmitter } from './EventEmitter.ts';
-import type { GamePhase, GameEvents, InputState, IGameState, CurveRenderData } from './types.ts';
+import type { GamePhase, GameEvents, InputState, IGameState, CurveRenderData, PickupRenderData } from './types.ts';
 
 function randomSpawn(index: number, total: number): { x: number; y: number; angle: number } {
   const margin = 100;
@@ -32,11 +33,12 @@ export class GameEngine extends TypedEventEmitter<GameEvents> implements IGameSt
   round = 0;
   countdown = COUNTDOWN_SECONDS;
 
+  private readonly powerUps = new PowerUpSystem();
+  private engineTick = 0;
   private countdownStart = 0;
   private roundOverAt = 0;
   private roundOverHandled = false;
 
-  // Default: 2-player local game. Server passes custom playerIds.
   constructor(playerIds: readonly number[] = PLAYER_CONFIGS.map((p) => p.id)) {
     super();
     this.scores = new ScoreSystem(playerIds);
@@ -46,6 +48,10 @@ export class GameEngine extends TypedEventEmitter<GameEvents> implements IGameSt
     });
   }
 
+  get pickups(): readonly PickupRenderData[] {
+    return this.powerUps.getPickupsSnapshot();
+  }
+
   getScore(playerId: number): number {
     return this.scores.getScore(playerId);
   }
@@ -53,6 +59,7 @@ export class GameEngine extends TypedEventEmitter<GameEvents> implements IGameSt
   startGame(): void {
     this.scores.reset();
     this.round = 0;
+    this.engineTick = 0;
     this.beginRound();
   }
 
@@ -73,6 +80,7 @@ export class GameEngine extends TypedEventEmitter<GameEvents> implements IGameSt
   private beginRound(): void {
     this.round++;
     this.collision.reset();
+    this.powerUps.reset();
     this.roundOverHandled = false;
 
     this.curves.forEach((curve, i) => {
@@ -97,6 +105,9 @@ export class GameEngine extends TypedEventEmitter<GameEvents> implements IGameSt
   }
 
   private tickPlaying(inputs: Map<number, InputState>, now: number): void {
+    this.engineTick++;
+    this.powerUps.update(this.curves, this.collision, this.engineTick);
+
     for (const curve of this.curves) {
       const wasAlive = curve.alive;
       const input = inputs.get(curve.id) ?? { left: false, right: false };
@@ -137,5 +148,4 @@ export class GameEngine extends TypedEventEmitter<GameEvents> implements IGameSt
   }
 }
 
-// Re-export CurveRenderData so renderers can import from one place
 export type { CurveRenderData };
