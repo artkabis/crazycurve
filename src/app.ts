@@ -1,5 +1,5 @@
 import { Application } from 'pixi.js';
-import { ARENA_WIDTH, ARENA_HEIGHT, PLAYER_CONFIGS } from './core/constants.ts';
+import { ARENA_WIDTH, ARENA_HEIGHT, PLAYER_CONFIGS, PLAYER_PALETTE } from './core/constants.ts';
 import { GameEngine } from './core/GameEngine.ts';
 import { TrailLayer } from './renderer/TrailLayer.ts';
 import { GameRenderer } from './renderer/GameRenderer.ts';
@@ -7,7 +7,9 @@ import { InputManager } from './input/InputManager.ts';
 import { GameScene } from './scenes/GameScene.ts';
 import { MenuScene } from './scenes/MenuScene.ts';
 import { GameOverScene } from './scenes/GameOverScene.ts';
+import type { PlayerResult } from './scenes/GameOverScene.ts';
 import { LobbyScene } from './scenes/LobbyScene.ts';
+import { NameInputScene } from './scenes/NameInputScene.ts';
 import { NetworkGameScene } from './scenes/NetworkGameScene.ts';
 import { NetworkManager } from './network/NetworkManager.ts';
 import type { PlayerInfo } from './network/protocol.ts';
@@ -55,7 +57,10 @@ export class App {
 
     this.localEngine.on('gameOver', (winnerId) => {
       this.localScene.stop();
-      const scene = new GameOverScene(winnerId, this.localEngine.scores.getScores(), () => {
+      const players: PlayerResult[] = PLAYER_CONFIGS.map((p) => ({
+        id: p.id, name: p.name, colorHex: p.colorHex,
+      }));
+      const scene = new GameOverScene(winnerId, players, this.localEngine.scores.getScores(), () => {
         scene.unmount();
         this.showMenu();
       });
@@ -66,12 +71,10 @@ export class App {
   }
 
   private showMenu(): void {
-    this.showOverlay(
-      new MenuScene(
-        () => this.startLocal(),
-        () => this.startOnline(),
-      ),
-    );
+    this.showOverlay(new MenuScene(
+      () => this.startLocal(),
+      () => this.showNameInput(),
+    ));
   }
 
   private startLocal(): void {
@@ -82,7 +85,14 @@ export class App {
 
   // ── Online flow ─────────────────────────────────────────────
 
-  private async startOnline(): Promise<void> {
+  private showNameInput(): void {
+    this.showOverlay(new NameInputScene(
+      (name) => this.startOnline(name),
+      () => this.showMenu(),
+    ));
+  }
+
+  private async startOnline(playerName: string): Promise<void> {
     this.activeOverlay?.unmount();
 
     const connecting = document.createElement('div');
@@ -100,8 +110,6 @@ export class App {
     }
 
     connecting.remove();
-
-    const playerName = `Player${Math.floor(Math.random() * 9000) + 1000}`;
     this.network.join(playerName);
 
     this.network.on('room_joined', (payload) => {
@@ -111,13 +119,13 @@ export class App {
         this.showMenu();
       });
 
-      // Add ourselves
       const selfInfo: PlayerInfo = {
         id: payload.yourPlayerId,
         name: playerName,
-        color: 0xffffff,
-        colorHex: '#ffffff',
+        color: PLAYER_PALETTE.find((p) => p.id === payload.yourPlayerId)?.color ?? 0xffffff,
+        colorHex: PLAYER_PALETTE.find((p) => p.id === payload.yourPlayerId)?.colorHex ?? '#ffffff',
       };
+
       const lobbyPlayers: PlayerInfo[] = [selfInfo];
       lobby.addPlayer(selfInfo);
       this.showOverlay(lobby);
@@ -136,13 +144,17 @@ export class App {
           playerIds, payload.yourPlayerId,
         );
 
-        netScene.start((winnerId) => {
+        const players: PlayerResult[] = lobbyPlayers.map((p) => ({
+          id: p.id, name: p.name, colorHex: p.colorHex,
+        }));
+
+        netScene.start((winnerId, scores) => {
           netScene.stop();
-          const scene = new GameOverScene(
-            winnerId,
-            new Map(), // scores come from final tick
-            () => { scene.unmount(); this.network.disconnect(); this.showMenu(); },
-          );
+          const scene = new GameOverScene(winnerId, players, scores, () => {
+            scene.unmount();
+            this.network.disconnect();
+            this.showMenu();
+          });
           this.showOverlay(scene);
         });
       });

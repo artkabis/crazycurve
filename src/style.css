@@ -175,3 +175,81 @@ body {
   min-height: 60px;
   text-align: center;
 }
+
+/* ── Name input ─────────────────────────────────────────────── */
+.name-input h2 {
+  font-size: 36px;
+  letter-spacing: 8px;
+  color: #44aaff;
+}
+
+.name-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.name-form input {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid #44aaff;
+  color: #fff;
+  font-family: inherit;
+  font-size: 22px;
+  letter-spacing: 3px;
+  padding: 8px 4px;
+  text-align: center;
+  outline: none;
+}
+
+.name-form input::placeholder {
+  color: #334;
+  font-size: 14px;
+  letter-spacing: 2px;
+}
+
+.btn-back {
+  background: transparent;
+  border: none;
+  color: #555;
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 3px;
+  cursor: pointer;
+  padding: 4px 8px;
+  text-transform: uppercase;
+  transition: color 0.15s;
+}
+
+.btn-back:hover {
+  color: #aaa;
+}
+
+/* ── Scoreboard rows ────────────────────────────────────────── */
+.score-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 32px;
+  font-size: 16px;
+  padding: 4px 12px;
+  min-width: 220px;
+}
+
+.score-row.winner {
+  font-weight: bold;
+  font-size: 18px;
+}
+
+.score-name {
+  text-align: left;
+}
+
+.score-pts {
+  text-align: right;
+  opacity: 0.8;
+}
