@@ -18,7 +18,9 @@ export type PowerUpType =
   | 'ghost'
   | 'thin'
   | 'thick'
-  | 'teleport';
+  | 'teleport'
+  | 'shield'
+  | 'eraser';
 
 export interface PickupRenderData {
   id: number;
@@ -54,4 +56,6 @@ export type GameEvents = {
   playerDied: [playerId: number];
   roundOver: [winnerId: number | null];
   gameOver: [winnerId: number];
+  pickup: [type: PowerUpType, collectorId: number];
+  eraseZone: [x: number, y: number, radius: number];
 };

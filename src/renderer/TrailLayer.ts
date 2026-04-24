@@ -32,6 +32,20 @@ export class TrailLayer {
     });
   }
 
+  erase(x: number, y: number, radius: number): void {
+    this.brush.clear();
+    // blendMode 'erase' cuts pixels to transparent on the RenderTexture
+    (this.brush as unknown as { blendMode: string }).blendMode = 'erase';
+    this.brush.circle(x, y, radius).fill({ color: 0xffffff, alpha: 1 });
+    this.app.renderer.render({
+      container: this.brushContainer,
+      target: this.renderTexture,
+      clear: false,
+    });
+    (this.brush as unknown as { blendMode: string }).blendMode = 'normal';
+    this.brush.clear();
+  }
+
   drawNewPoints(curves: readonly CurveRenderData[]): void {
     for (const curve of curves) {
       if (curve.newPoints.length === 0) continue;

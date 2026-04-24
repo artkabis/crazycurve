@@ -29,7 +29,8 @@ export interface PickupSnapshot {
 export type NetGameEvent =
   | { type: 'player_died'; playerId: number }
   | { type: 'round_over'; winnerId: number | null }
-  | { type: 'game_over'; winnerId: number };
+  | { type: 'game_over'; winnerId: number }
+  | { type: 'erase_zone'; x: number; y: number; radius: number };
 
 export interface TickPayload {
   tick: number;

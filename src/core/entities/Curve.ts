@@ -65,13 +65,9 @@ export class Curve {
     this.newPoints = [];
   }
 
-  get inGap(): boolean {
-    return this.gapActive;
-  }
-
-  get activeEffects(): readonly PowerUpType[] {
-    return [...this.effects.keys()];
-  }
+  get inGap(): boolean { return this.gapActive; }
+  get activeEffects(): readonly PowerUpType[] { return [...this.effects.keys()]; }
+  get shielded(): boolean { return this.effects.has('shield'); }
 
   applyEffect(type: PowerUpType, expiresAtTick: number): void {
     this.effects.set(type, expiresAtTick);
@@ -129,9 +125,16 @@ export class Curve {
     const hitWall  = collision.checkWall(nx, ny, this.trailRadius);
     const hitTrail = !this.gapActive && !this.ghostTrail && collision.checkTrail(nx, ny);
 
-    if (hitWall || hitTrail) {
-      this.alive = false;
-      return;
+    if (hitWall) { this.alive = false; return; }
+    if (hitTrail) {
+      if (this.shielded) {
+        // Consume shield instead of dying
+        this.effects.delete('shield');
+        this.recalcEffects();
+      } else {
+        this.alive = false;
+        return;
+      }
     }
 
     this.x = nx;

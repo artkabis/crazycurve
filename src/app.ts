@@ -4,10 +4,10 @@ import { GameEngine } from './core/GameEngine.ts';
 import { TrailLayer } from './renderer/TrailLayer.ts';
 import { GameRenderer } from './renderer/GameRenderer.ts';
 import { InputManager } from './input/InputManager.ts';
+import { AudioManager } from './audio/AudioManager.ts';
 import { GameScene } from './scenes/GameScene.ts';
 import { MenuScene } from './scenes/MenuScene.ts';
-import { GameOverScene } from './scenes/GameOverScene.ts';
-import type { PlayerResult } from './scenes/GameOverScene.ts';
+import { GameOverScene, type PlayerResult } from './scenes/GameOverScene.ts';
 import { LobbyScene } from './scenes/LobbyScene.ts';
 import { NameInputScene } from './scenes/NameInputScene.ts';
 import { NetworkGameScene } from './scenes/NetworkGameScene.ts';
@@ -19,6 +19,7 @@ export class App {
   private input!: InputManager;
   private trailLayer!: TrailLayer;
   private network!: NetworkManager;
+  private audio!: AudioManager;
 
   private localEngine!: GameEngine;
   private localRenderer!: GameRenderer;
@@ -42,6 +43,10 @@ export class App {
     this.input = new InputManager();
     this.network = new NetworkManager();
     this.trailLayer = new TrailLayer(this.pixiApp);
+    this.audio = new AudioManager();
+
+    // Unlock Web Audio on first user gesture anywhere on the page
+    document.addEventListener('pointerdown', () => this.audio.unlock(), { once: true });
 
     // ── Local mode setup ───────────────────────────────────────
     const localIds = PLAYER_CONFIGS.map((p) => p.id);
@@ -51,9 +56,26 @@ export class App {
       this.pixiApp, this.localEngine, this.input, this.trailLayer, this.localRenderer,
     );
 
+    // ── Local audio + visual event wiring ─────────────────────
     this.localEngine.on('phaseChange', (phase) => {
-      if (phase === 'countdown') this.trailLayer.clear();
+      if (phase === 'countdown') {
+        this.trailLayer.clear();
+        [0, 1000, 2000].forEach((ms) => setTimeout(() => this.audio.countdown(), ms));
+      }
+      if (phase === 'playing')    this.audio.go();
+      if (phase === 'round_over') this.audio.roundWin();
+      if (phase === 'game_over')  this.audio.gameWin();
     });
+
+    this.localEngine.on('playerDied', () => this.audio.die());
+
+    this.localEngine.on('pickup', (type) => {
+      if (type === 'eraser') this.audio.erase();
+      else if (type === 'shield') this.audio.shield();
+      else this.audio.pickup();
+    });
+
+    this.localEngine.on('eraseZone', (x, y, r) => this.trailLayer.erase(x, y, r));
 
     this.localEngine.on('gameOver', (winnerId) => {
       this.localScene.stop();
@@ -140,7 +162,8 @@ export class App {
         const playerIds = lobbyPlayers.map((p) => p.id);
         const netRenderer = new GameRenderer(this.pixiApp, this.trailLayer, playerIds);
         const netScene = new NetworkGameScene(
-          this.pixiApp, this.network, this.input, this.trailLayer, netRenderer,
+          this.pixiApp, this.network, this.input,
+          this.trailLayer, netRenderer, this.audio,
           playerIds, payload.yourPlayerId,
         );
 

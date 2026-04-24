@@ -5,6 +5,7 @@ import {
   POWERUP_MAX_ACTIVE,
   POWERUP_RADIUS,
   POWERUP_SPAWN_INTERVAL,
+  ERASER_RADIUS,
 } from '../constants.ts';
 import type { CollisionSystem } from './CollisionSystem.ts';
 import type { Curve } from '../entities/Curve.ts';
@@ -14,6 +15,11 @@ import type { PickupRenderData, PowerUpType } from '../types.ts';
 export class PowerUpSystem {
   private pickups: Pickup[] = [];
   private spawnTimer = 0;
+
+  constructor(
+    private readonly onPickup?: (type: PowerUpType, collectorId: number) => void,
+    private readonly onErase?: (x: number, y: number, radius: number) => void,
+  ) {}
 
   reset(): void {
     this.pickups = [];
@@ -37,7 +43,8 @@ export class PowerUpSystem {
         const dy = curve.y - pickup.y;
         if (dx * dx + dy * dy <= POWERUP_RADIUS * POWERUP_RADIUS) {
           pickup.collected = true;
-          this.applyEffect(pickup.type, curve, curves, currentTick);
+          this.applyEffect(pickup.type, curve, curves, currentTick, collision);
+          this.onPickup?.(pickup.type, curve.id);
           break;
         }
       }
@@ -63,7 +70,13 @@ export class PowerUpSystem {
     }
   }
 
-  private applyEffect(type: PowerUpType, collector: Curve, allCurves: Curve[], currentTick: number): void {
+  private applyEffect(
+    type: PowerUpType,
+    collector: Curve,
+    allCurves: Curve[],
+    currentTick: number,
+    collision: CollisionSystem,
+  ): void {
     const cfg = POWERUP_CONFIGS.find((c) => c.type === type)!;
 
     if (type === 'teleport') {
@@ -71,6 +84,12 @@ export class PowerUpSystem {
       const x = margin + Math.random() * (ARENA_WIDTH - margin * 2);
       const y = margin + Math.random() * (ARENA_HEIGHT - margin * 2);
       collector.teleport(x, y, Math.random() * Math.PI * 2);
+      return;
+    }
+
+    if (type === 'eraser') {
+      collision.erase(collector.x, collector.y, ERASER_RADIUS);
+      this.onErase?.(collector.x, collector.y, ERASER_RADIUS);
       return;
     }
 

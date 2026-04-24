@@ -83,6 +83,7 @@ export class Room {
     this.engine.on('playerDied', (id) => this.pendingEvents.push({ type: 'player_died', playerId: id }));
     this.engine.on('roundOver', (id) => this.pendingEvents.push({ type: 'round_over', winnerId: id ?? null }));
     this.engine.on('gameOver', (id) => this.pendingEvents.push({ type: 'game_over', winnerId: id }));
+    this.engine.on('eraseZone', (x, y, r) => this.pendingEvents.push({ type: 'erase_zone', x, y, radius: r }));
 
     this.engine.startGame();
     this.io.to(this.id).emit('game_start');

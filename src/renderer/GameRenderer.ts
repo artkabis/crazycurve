@@ -141,6 +141,12 @@ export class GameRenderer {
       const alpha = curve.ghostTrail ? 0.35 : 1;
       g.circle(curve.x, curve.y, curve.trailRadius + 2).fill({ color: 0xffffff, alpha });
 
+      if (curve.activeEffects.includes('shield')) {
+        const pulse = 0.6 + Math.sin(Date.now() / 150) * 0.4;
+        g.circle(curve.x, curve.y, curve.trailRadius + 7)
+          .stroke({ color: 0x00ffcc, width: 2, alpha: pulse });
+      }
+
       // Direction arrow shown during countdown
       if (showArrow) {
         const len = 22;

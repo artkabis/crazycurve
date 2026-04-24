@@ -45,7 +45,11 @@ export const POWERUP_CONFIGS: PowerUpConfig[] = [
   { type: 'thin',        color: 0x44ff88, label: 'THIN',   duration: 180, targetSelf: true  },
   { type: 'thick',       color: 0xff6600, label: 'THICK',  duration: 120, targetSelf: false },
   { type: 'teleport',    color: 0xff00ff, label: 'WARP',   duration:   0, targetSelf: true  },
+  { type: 'shield',      color: 0x00ffcc, label: 'SHIELD', duration: 300, targetSelf: true  },
+  { type: 'eraser',      color: 0xff8800, label: 'ERASE',  duration:   0, targetSelf: true  },
 ];
+
+export const ERASER_RADIUS = 44; // px — zone cleared in bitmap + trail texture
 
 export const POWERUP_SPAWN_INTERVAL = 180; // ticks between spawns (~6 s at 30 Hz)
 export const POWERUP_MAX_ACTIVE = 5;

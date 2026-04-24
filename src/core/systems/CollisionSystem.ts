@@ -34,6 +34,23 @@ export class CollisionSystem {
     return x - radius < 1 || x + radius >= this.w - 1 || y - radius < 1 || y + radius >= this.h - 1;
   }
 
+  erase(x: number, y: number, radius: number): void {
+    const cx = Math.round(x);
+    const cy = Math.round(y);
+    const r = Math.ceil(radius);
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (dx * dx + dy * dy <= radius * radius) {
+          const px = cx + dx;
+          const py = cy + dy;
+          if (px >= 0 && px < this.w && py >= 0 && py < this.h) {
+            this.grid[py * this.w + px] = 0;
+          }
+        }
+      }
+    }
+  }
+
   checkTrail(x: number, y: number): boolean {
     const cx = Math.round(x);
     const cy = Math.round(y);

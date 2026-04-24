@@ -33,7 +33,10 @@ export class GameEngine extends TypedEventEmitter<GameEvents> implements IGameSt
   round = 0;
   countdown = COUNTDOWN_SECONDS;
 
-  private readonly powerUps = new PowerUpSystem();
+  private readonly powerUps = new PowerUpSystem(
+    (type, id) => this.emit('pickup', type, id),
+    (x, y, r) => this.emit('eraseZone', x, y, r),
+  );
   private engineTick = 0;
   private countdownStart = 0;
   private roundOverAt = 0;
