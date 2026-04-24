@@ -28,13 +28,14 @@ export class App {
   private localScene?: GameScene;
 
   private activeOverlay?: { unmount(): void };
+  private negativeMode = false;
 
   async init(container: HTMLElement): Promise<void> {
     this.pixiApp = new Application();
     await this.pixiApp.init({
       width: ARENA_WIDTH,
       height: ARENA_HEIGHT,
-      backgroundColor: 0x0a0a0f,
+      backgroundColor: 0x07070e,
       antialias: false,
       resolution: window.devicePixelRatio || 1,
       autoDensity: true,
@@ -49,7 +50,18 @@ export class App {
 
     document.addEventListener('pointerdown', () => this.audio.unlock(), { once: true });
 
+    // Toggle negative (inverted) colour mode with I key
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'i' || e.key === 'I') this.toggleNegativeMode();
+    });
+
     this.showMenu();
+  }
+
+  private toggleNegativeMode(): void {
+    this.negativeMode = !this.negativeMode;
+    const canvas = this.pixiApp.canvas as HTMLCanvasElement;
+    canvas.style.filter = this.negativeMode ? 'invert(1)' : '';
   }
 
   private showMenu(): void {
@@ -70,8 +82,9 @@ export class App {
     this.activeOverlay?.unmount();
     this.activeOverlay = undefined;
 
-    // Tear down previous local game if any
+    // Tear down previous local game — stop ticker, drain listeners, remove PixiJS objects
     this.localScene?.stop();
+    this.localEngine?.removeAllListeners();
     this.localRenderer?.destroy();
 
     const ids = players.map((p) => p.id);
@@ -145,7 +158,17 @@ export class App {
     connecting.remove();
     this.network.join(playerName, roomId);
 
+    // Shared across room_joined + game_start closures for reconnection flow
+    let reconnectOverlay: HTMLDivElement | null = null;
+
     this.network.on('room_joined', (payload) => {
+      // Reconnection succeeded — server restored our slot, hide overlay and continue
+      if (payload.isReconnect) {
+        reconnectOverlay?.remove();
+        reconnectOverlay = null;
+        return;
+      }
+
       const lobby = new LobbyScene(payload.roomId, () => {
         this.network.disconnect();
         lobby.unmount();
@@ -184,12 +207,44 @@ export class App {
 
         netScene.start((winnerId, scores) => {
           netScene.stop();
+          reconnectOverlay?.remove();
+          reconnectOverlay = null;
           const scene = new GameOverScene(winnerId, players, scores, () => {
             scene.unmount();
             this.network.disconnect();
             this.showMenu();
           });
           this.showOverlay(scene);
+        });
+
+        // ── Reconnection overlay (shown only during live game) ──
+        this.network.onDisconnect(() => {
+          reconnectOverlay = document.createElement('div');
+          reconnectOverlay.className = 'overlay reconnecting';
+          reconnectOverlay.innerHTML = `
+            <div class="reconnecting-box">
+              <p class="reconnecting-title">CONNECTION LOST</p>
+              <p class="reconnecting-status" id="rc-status">Reconnecting…</p>
+            </div>
+          `;
+          this.getUI().appendChild(reconnectOverlay);
+        });
+
+        this.network.onReconnecting((attempt, max) => {
+          const el = document.getElementById('rc-status');
+          if (el) el.textContent = `Reconnecting… (${attempt}/${max})`;
+        });
+
+        this.network.onReconnectFailed(() => {
+          const el = document.getElementById('rc-status');
+          if (el) el.textContent = 'Connection failed';
+          setTimeout(() => {
+            netScene.stop();
+            reconnectOverlay?.remove();
+            reconnectOverlay = null;
+            this.network.disconnect();
+            this.showMenu();
+          }, 2000);
         });
       });
     });

@@ -47,21 +47,35 @@ export class TrailLayer {
   }
 
   drawNewPoints(curves: readonly CurveRenderData[]): void {
+    let anyNew = false;
+
+    this.brush.clear();
+
     for (const curve of curves) {
       if (curve.newPoints.length === 0) continue;
+      anyNew = true;
 
       const palette = getPalette(curve.id);
 
-      this.brush.clear();
+      // Soft glow halo (two layers, low alpha)
+      for (const pt of curve.newPoints) {
+        this.brush.circle(pt.x, pt.y, curve.trailRadius * 3.5)
+          .fill({ color: palette.color, alpha: 0.055 });
+        this.brush.circle(pt.x, pt.y, curve.trailRadius * 2.0)
+          .fill({ color: palette.color, alpha: 0.11 });
+      }
+      // Solid core
       for (const pt of curve.newPoints) {
         this.brush.circle(pt.x, pt.y, curve.trailRadius).fill({ color: palette.color });
       }
-
-      this.app.renderer.render({
-        container: this.brushContainer,
-        target: this.renderTexture,
-        clear: false,
-      });
     }
+
+    if (!anyNew) return;
+
+    this.app.renderer.render({
+      container: this.brushContainer,
+      target: this.renderTexture,
+      clear: false,
+    });
   }
 }

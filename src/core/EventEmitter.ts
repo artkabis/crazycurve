@@ -21,4 +21,8 @@ export class TypedEventEmitter<TEvents extends EventMap> {
   off<K extends keyof TEvents>(event: K, listener: (...args: TEvents[K]) => void): void {
     this.listeners.get(event)?.delete(listener as Handler);
   }
+
+  removeAllListeners(): void {
+    this.listeners.clear();
+  }
 }

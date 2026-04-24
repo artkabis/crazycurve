@@ -47,6 +47,7 @@ export interface RoomJoinedPayload {
   roomId: string;
   yourPlayerId: number;
   players: PlayerInfo[];
+  isReconnect?: boolean;
 }
 
 export interface ClientToServerEvents {

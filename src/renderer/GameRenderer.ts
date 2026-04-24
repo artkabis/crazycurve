@@ -4,6 +4,7 @@ import { ARENA_WIDTH, ARENA_HEIGHT, PLAYER_PALETTE, POWERUP_CONFIGS, SCORE_TO_WI
 import type { IGameState, PowerUpType } from '../core/types.ts';
 import type { TrailLayer } from './TrailLayer.ts';
 import { PowerUpLayer } from './PowerUpLayer.ts';
+import { buildBackground } from './Background.ts';
 
 export class GameRenderer {
   private readonly headGraphics = new Map<number, Graphics>();
@@ -30,16 +31,14 @@ export class GameRenderer {
   ) {
     this.trailSprite = trailLayer.sprite as unknown as Container;
 
-    const border = new Graphics();
-    border.rect(1, 1, ARENA_WIDTH - 2, ARENA_HEIGHT - 2).stroke({ color: 0x222222, width: 2 });
-
+    const bg = buildBackground();
     const headsLayer = new Container();
     const hudLayer = new Container();
     const overlayLayer = new Container();
 
     this.powerUpLayer = new PowerUpLayer();
 
-    app.stage.addChild(border);
+    app.stage.addChild(bg);
     app.stage.addChild(trailLayer.sprite);
     app.stage.addChild(this.powerUpLayer.displayObject);
     app.stage.addChild(headsLayer);
@@ -47,7 +46,7 @@ export class GameRenderer {
     app.stage.addChild(overlayLayer);
 
     this.ownedChildren.push(
-      border,
+      bg,
       this.powerUpLayer.displayObject as unknown as Container,
       headsLayer,
       hudLayer,

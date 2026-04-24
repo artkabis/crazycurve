@@ -439,3 +439,46 @@ body {
   text-align: right;
   opacity: 0.8;
 }
+
+/* ── Reconnecting overlay ───────────────────────────────────── */
+.reconnecting {
+  background: rgba(4, 4, 10, 0.82);
+  pointer-events: none;
+}
+
+.reconnecting-box {
+  text-align: center;
+  background: #080810;
+  border: 1px solid #1a1a30;
+  padding: 24px 52px;
+}
+
+.reconnecting-title {
+  font-size: 16px;
+  letter-spacing: 6px;
+  color: #ff4466;
+  margin-bottom: 14px;
+}
+
+.reconnecting-status {
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: #555;
+  animation: pulse-text 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-text {
+  from { opacity: 1; }
+  to   { opacity: 0.25; }
+}
+
+/* ── Negative mode hint (shown in menu) ─────────────────────── */
+.hint-key {
+  display: inline-block;
+  border: 1px solid #333;
+  padding: 0 5px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #444;
+  margin-right: 4px;
+}

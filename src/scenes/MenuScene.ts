@@ -12,6 +12,7 @@ export class MenuScene {
         <button class="btn-action btn-online" id="cc-online">⬡ &nbsp;ONLINE</button>
       </div>
       <p class="hint">Local : press Enter &nbsp;·&nbsp; Online : press O</p>
+      <p class="hint" style="margin-top:6px"><span class="hint-key">I</span> toggle negative mode</p>
     `;
 
     this.el.querySelector('#cc-local')!.addEventListener('click', onLocal);

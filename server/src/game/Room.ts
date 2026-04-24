@@ -20,10 +20,14 @@ type IoServer = Server<ClientToServerEvents, ServerToClientEvents>;
 type RoomSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 
 interface RoomPlayer {
-  socket: RoomSocket;
+  socket: RoomSocket | null;
   info: PlayerInfo;
   pendingInput: { left: boolean; right: boolean };
+  disconnectedAt?: number;
+  cleanupTimer?: ReturnType<typeof setTimeout>;
 }
+
+const RECONNECT_WINDOW_MS = 20_000;
 
 export class Room {
   readonly id: string;
@@ -39,13 +43,35 @@ export class Room {
   }
 
   get playerCount(): number { return this.players.size; }
-  get isFull(): boolean { return this.players.size >= MAX_PLAYERS; }
+
+  get isFull(): boolean {
+    const active = [...this.players.values()].filter((p) => p.socket !== null).length;
+    return active >= MAX_PLAYERS;
+  }
+
   get isEmpty(): boolean { return this.players.size === 0; }
   get isRunning(): boolean { return this.tickInterval !== null; }
 
   addPlayer(socket: RoomSocket, name: string): PlayerInfo | null {
-    if (this.isFull || this.isRunning) return null;
-    if (this.nextId > MAX_PLAYERS) return null;
+    // ── Reconnection path (game already running) ───────────────
+    if (this.isRunning) {
+      for (const [oldSid, player] of this.players) {
+        if (player.disconnectedAt !== undefined && player.info.name === name) {
+          clearTimeout(player.cleanupTimer);
+          this.players.delete(oldSid);
+          player.socket = socket;
+          player.disconnectedAt = undefined;
+          player.cleanupTimer = undefined;
+          this.players.set(socket.id, player);
+          socket.join(this.id);
+          return player.info;
+        }
+      }
+      return null; // Running game, no matching disconnected slot
+    }
+
+    // ── Normal join ────────────────────────────────────────────
+    if (this.isFull || this.nextId > MAX_PLAYERS) return null;
 
     const palette = getPalette(this.nextId);
     const info: PlayerInfo = {
@@ -64,14 +90,30 @@ export class Room {
   removePlayer(socketId: string): void {
     const player = this.players.get(socketId);
     if (!player) return;
-    this.players.delete(socketId);
-    this.io.to(this.id).emit('player_left', player.info.id);
-    if (this.players.size < MIN_PLAYERS) this.stopLoop();
+
+    if (this.isRunning) {
+      // Keep slot alive for RECONNECT_WINDOW_MS — player may come back
+      player.socket = null;
+      player.disconnectedAt = Date.now();
+      this.io.to(this.id).emit('player_left', player.info.id);
+
+      player.cleanupTimer = setTimeout(() => {
+        if (this.players.has(socketId) && player.disconnectedAt !== undefined) {
+          this.players.delete(socketId);
+          const connected = [...this.players.values()].filter((p) => p.socket !== null).length;
+          if (connected < MIN_PLAYERS) this.stopLoop();
+        }
+      }, RECONNECT_WINDOW_MS);
+    } else {
+      this.players.delete(socketId);
+      this.io.to(this.id).emit('player_left', player.info.id);
+      if (this.players.size < MIN_PLAYERS) this.stopLoop();
+    }
   }
 
   receiveInput(socketId: string, left: boolean, right: boolean): void {
     const p = this.players.get(socketId);
-    if (p) p.pendingInput = { left, right };
+    if (p && p.socket !== null) p.pendingInput = { left, right };
   }
 
   tryStart(): boolean {
@@ -96,6 +138,10 @@ export class Room {
       clearInterval(this.tickInterval);
       this.tickInterval = null;
     }
+    // Cancel pending reconnect timers
+    for (const player of this.players.values()) {
+      if (player.cleanupTimer) clearTimeout(player.cleanupTimer);
+    }
     this.engine = null;
   }
 
@@ -107,7 +153,10 @@ export class Room {
     this.pendingEvents = [];
 
     const inputs = new Map(
-      [...this.players.values()].map((p) => [p.info.id, p.pendingInput]),
+      [...this.players.values()].map((p) => [
+        p.info.id,
+        p.socket !== null ? p.pendingInput : { left: false, right: false },
+      ]),
     );
 
     engine.update(inputs, performance.now());
