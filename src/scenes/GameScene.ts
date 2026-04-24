@@ -1,10 +1,11 @@
 import type { Application } from 'pixi.js';
-import { PLAYER_CONFIGS } from '../core/constants.ts';
 import type { GameEngine } from '../core/GameEngine.ts';
 import type { GameRenderer } from '../renderer/GameRenderer.ts';
 import type { TrailLayer } from '../renderer/TrailLayer.ts';
 import type { InputManager } from '../input/InputManager.ts';
 import type { InputState } from '../core/types.ts';
+
+interface PlayerKeys { id: number; leftKey: string; rightKey: string; }
 
 export class GameScene {
   private tickFn: (() => void) | null = null;
@@ -15,6 +16,7 @@ export class GameScene {
     private readonly input: InputManager,
     private readonly trailLayer: TrailLayer,
     private readonly renderer: GameRenderer,
+    private readonly playerConfigs: readonly PlayerKeys[],
   ) {}
 
   start(): void {
@@ -32,7 +34,7 @@ export class GameScene {
 
   private tick(): void {
     const inputs = new Map<number, InputState>(
-      PLAYER_CONFIGS.map((cfg) => [
+      this.playerConfigs.map((cfg) => [
         cfg.id,
         { left: this.input.isDown(cfg.leftKey), right: this.input.isDown(cfg.rightKey) },
       ]),
@@ -40,7 +42,6 @@ export class GameScene {
 
     this.engine.update(inputs, performance.now());
 
-    // Clear newPoints BEFORE drawing so each frame only paints new segments
     this.trailLayer.drawNewPoints(this.engine.curves);
     for (const curve of this.engine.curves) curve.newPoints = [];
 

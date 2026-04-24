@@ -2,7 +2,7 @@ import {
   ARENA_WIDTH,
   ARENA_HEIGHT,
   PLAYER_CONFIGS,
-  ROUNDS_TO_WIN,
+  SCORE_TO_WIN,
   COUNTDOWN_SECONDS,
   ROUND_OVER_DELAY_MS,
   getPalette,
@@ -42,7 +42,10 @@ export class GameEngine extends TypedEventEmitter<GameEvents> implements IGameSt
   private roundOverAt = 0;
   private roundOverHandled = false;
 
-  constructor(playerIds: readonly number[] = PLAYER_CONFIGS.map((p) => p.id)) {
+  constructor(
+    playerIds: readonly number[] = PLAYER_CONFIGS.map((p) => p.id),
+    private readonly scoreToWin: number = SCORE_TO_WIN,
+  ) {
     super();
     this.scores = new ScoreSystem(playerIds);
     this.curves = playerIds.map((id) => {
@@ -111,12 +114,19 @@ export class GameEngine extends TypedEventEmitter<GameEvents> implements IGameSt
     this.engineTick++;
     this.powerUps.update(this.curves, this.collision, this.engineTick);
 
+    const newlyDead: number[] = [];
     for (const curve of this.curves) {
       const wasAlive = curve.alive;
       const input = inputs.get(curve.id) ?? { left: false, right: false };
       curve.update(input, this.collision);
-      if (wasAlive && !curve.alive) {
-        this.emit('playerDied', curve.id);
+      if (wasAlive && !curve.alive) newlyDead.push(curve.id);
+    }
+
+    // Original Curve Fever rule: +1 to every still-alive player for each death
+    for (const deadId of newlyDead) {
+      this.emit('playerDied', deadId);
+      for (const c of this.curves) {
+        if (c.alive) this.scores.addPoint(c.id);
       }
     }
 
@@ -125,18 +135,16 @@ export class GameEngine extends TypedEventEmitter<GameEvents> implements IGameSt
     const alive = this.curves.filter((c) => c.alive);
     if (alive.length <= 1) {
       this.roundOverHandled = true;
-      const winner = alive[0] ?? null;
-      if (winner) this.scores.addPoint(winner.id);
       this.roundOverAt = now;
       this.setPhase('round_over');
-      this.emit('roundOver', winner?.id ?? null);
+      this.emit('roundOver', alive[0]?.id ?? null);
     }
   }
 
   private tickRoundOver(now: number): void {
     if (now - this.roundOverAt < ROUND_OVER_DELAY_MS) return;
 
-    const gameWinnerId = this.scores.getWinner(ROUNDS_TO_WIN);
+    const gameWinnerId = this.scores.getWinner(this.scoreToWin);
     if (gameWinnerId !== null) {
       this.setPhase('game_over');
       this.emit('gameOver', gameWinnerId);

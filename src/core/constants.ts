@@ -17,7 +17,7 @@ export const GAP_DURATION_MAX = 24;
 export const STARTUP_GAP_FRAMES = 80;
 
 // ── Game rules ─────────────────────────────────────────────────
-export const ROUNDS_TO_WIN = 5;
+export const SCORE_TO_WIN = 10; // first player to reach this wins
 export const ROUND_OVER_DELAY_MS = 2500;
 export const COUNTDOWN_SECONDS = 3;
 
@@ -59,10 +59,10 @@ export const POWERUP_RADIUS = 12; // px — collection + visual radius
 export const PLAYER_PALETTE = [
   { id: 1, name: 'P1', color: 0xff4466, colorHex: '#ff4466', leftKey: 'ArrowLeft', rightKey: 'ArrowRight' },
   { id: 2, name: 'P2', color: 0x44aaff, colorHex: '#44aaff', leftKey: 'a',         rightKey: 'd'           },
-  { id: 3, name: 'P3', color: 0x44ff88, colorHex: '#44ff88', leftKey: '',           rightKey: ''            },
-  { id: 4, name: 'P4', color: 0xffaa00, colorHex: '#ffaa00', leftKey: '',           rightKey: ''            },
-  { id: 5, name: 'P5', color: 0xaa44ff, colorHex: '#aa44ff', leftKey: '',           rightKey: ''            },
-  { id: 6, name: 'P6', color: 0x00ddff, colorHex: '#00ddff', leftKey: '',           rightKey: ''            },
+  { id: 3, name: 'P3', color: 0x44ff88, colorHex: '#44ff88', leftKey: 'n',         rightKey: 'm'           },
+  { id: 4, name: 'P4', color: 0xffaa00, colorHex: '#ffaa00', leftKey: 'f',         rightKey: 'g'           },
+  { id: 5, name: 'P5', color: 0xaa44ff, colorHex: '#aa44ff', leftKey: '1',         rightKey: '2'           },
+  { id: 6, name: 'P6', color: 0x00ddff, colorHex: '#00ddff', leftKey: '7',         rightKey: '8'           },
 ] as const;
 
 export type PlayerPalette = (typeof PLAYER_PALETTE)[number];
@@ -74,4 +74,13 @@ export function getPalette(id: number): PlayerPalette {
   const p = PLAYER_PALETTE.find((c) => c.id === id);
   if (!p) throw new Error(`Unknown player id: ${id}`);
   return p;
+}
+
+export interface LocalPlayerSetup {
+  id: number;
+  name: string;
+  color: number;
+  colorHex: string;
+  leftKey: string;
+  rightKey: string;
 }

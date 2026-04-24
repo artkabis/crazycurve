@@ -155,16 +155,6 @@ body {
   color: #fff;
 }
 
-.room-code {
-  font-size: 14px;
-  color: #666;
-  letter-spacing: 3px;
-}
-
-.room-code strong {
-  color: #fff;
-  font-size: 20px;
-}
 
 .player-list {
   list-style: none;
@@ -227,6 +217,202 @@ body {
 
 .btn-back:hover {
   color: #aaa;
+}
+
+/* ── Player Setup ───────────────────────────────────────────── */
+.setup h2.setup-title {
+  font-size: 30px;
+  letter-spacing: 6px;
+  color: #fff;
+}
+
+.setup-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 360px;
+}
+
+.setup-label {
+  font-size: 10px;
+  letter-spacing: 4px;
+  color: #555;
+  text-transform: uppercase;
+}
+
+.setup-hint {
+  color: #333;
+  font-size: 9px;
+  letter-spacing: 2px;
+}
+
+.setup-count {
+  display: flex;
+  gap: 8px;
+}
+
+.setup-count-btn,
+.setup-score-btn {
+  background: transparent;
+  border: 1px solid #333;
+  color: #777;
+  font-family: inherit;
+  font-size: 15px;
+  width: 44px;
+  height: 40px;
+  cursor: pointer;
+  transition: all 0.1s;
+  letter-spacing: 0;
+}
+
+.setup-count-btn:hover,
+.setup-score-btn:hover {
+  border-color: #aaa;
+  color: #fff;
+}
+
+.setup-count-btn.active,
+.setup-score-btn.active {
+  background: #fff;
+  color: #04040a;
+  border-color: #fff;
+}
+
+.setup-players {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.setup-player-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.setup-dot {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.setup-pname {
+  flex: 1;
+  letter-spacing: 2px;
+}
+
+.setup-key {
+  background: #111;
+  border: 1px solid #2a2a2a;
+  color: #bbb;
+  font-family: inherit;
+  font-size: 12px;
+  width: 54px;
+  height: 30px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: all 0.1s;
+}
+
+.setup-key:hover {
+  border-color: #666;
+  color: #fff;
+}
+
+.setup-key.listening {
+  border-color: #44aaff;
+  color: #44aaff;
+  animation: pulse-border 0.6s infinite alternate;
+}
+
+@keyframes pulse-border {
+  from { border-color: #44aaff; box-shadow: 0 0 6px #44aaff44; }
+  to   { border-color: #1a3a55; box-shadow: none; }
+}
+
+/* ── Online mode selection ──────────────────────────────────── */
+.mode-player-name {
+  color: #aaa;
+  font-size: 13px;
+  letter-spacing: 4px;
+  margin-top: -8px;
+}
+
+.online-modes {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 300px;
+}
+
+.join-code-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.join-code-row input {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid #444;
+  color: #fff;
+  font-family: inherit;
+  font-size: 20px;
+  letter-spacing: 8px;
+  padding: 6px 4px;
+  text-align: center;
+  outline: none;
+  text-transform: uppercase;
+  min-width: 0;
+}
+
+.join-code-row input::placeholder {
+  color: #333;
+  font-size: 11px;
+  letter-spacing: 3px;
+}
+
+.join-code-row .btn-action {
+  font-size: 13px;
+  padding: 6px 14px;
+  margin-top: 0;
+  white-space: nowrap;
+}
+
+/* ── Lobby room code box ────────────────────────────────────── */
+.room-code-box {
+  text-align: center;
+  background: #0d0d14;
+  border: 1px solid #1e1e2e;
+  padding: 12px 36px;
+}
+
+.room-code-label {
+  font-size: 9px;
+  color: #444;
+  letter-spacing: 5px;
+  margin-bottom: 8px;
+}
+
+.room-code-value {
+  font-size: 40px;
+  color: #fff;
+  letter-spacing: 14px;
+  font-weight: bold;
+  padding-left: 14px; /* optical center for letter-spacing */
+}
+
+.room-code-hint {
+  font-size: 9px;
+  color: #333;
+  letter-spacing: 3px;
+  margin-top: 6px;
 }
 
 /* ── Scoreboard rows ────────────────────────────────────────── */

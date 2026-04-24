@@ -1,5 +1,6 @@
 import { Application } from 'pixi.js';
-import { ARENA_WIDTH, ARENA_HEIGHT, PLAYER_CONFIGS, PLAYER_PALETTE } from './core/constants.ts';
+import { ARENA_WIDTH, ARENA_HEIGHT, PLAYER_PALETTE } from './core/constants.ts';
+import type { LocalPlayerSetup } from './core/constants.ts';
 import { GameEngine } from './core/GameEngine.ts';
 import { TrailLayer } from './renderer/TrailLayer.ts';
 import { GameRenderer } from './renderer/GameRenderer.ts';
@@ -11,6 +12,7 @@ import { GameOverScene, type PlayerResult } from './scenes/GameOverScene.ts';
 import { LobbyScene } from './scenes/LobbyScene.ts';
 import { NameInputScene } from './scenes/NameInputScene.ts';
 import { NetworkGameScene } from './scenes/NetworkGameScene.ts';
+import { PlayerSetupScene } from './scenes/PlayerSetupScene.ts';
 import { NetworkManager } from './network/NetworkManager.ts';
 import type { PlayerInfo } from './network/protocol.ts';
 
@@ -21,9 +23,9 @@ export class App {
   private network!: NetworkManager;
   private audio!: AudioManager;
 
-  private localEngine!: GameEngine;
-  private localRenderer!: GameRenderer;
-  private localScene!: GameScene;
+  private localEngine?: GameEngine;
+  private localRenderer?: GameRenderer;
+  private localScene?: GameScene;
 
   private activeOverlay?: { unmount(): void };
 
@@ -45,18 +47,40 @@ export class App {
     this.trailLayer = new TrailLayer(this.pixiApp);
     this.audio = new AudioManager();
 
-    // Unlock Web Audio on first user gesture anywhere on the page
     document.addEventListener('pointerdown', () => this.audio.unlock(), { once: true });
 
-    // ── Local mode setup ───────────────────────────────────────
-    const localIds = PLAYER_CONFIGS.map((p) => p.id);
-    this.localEngine = new GameEngine(localIds);
-    this.localRenderer = new GameRenderer(this.pixiApp, this.trailLayer, localIds);
+    this.showMenu();
+  }
+
+  private showMenu(): void {
+    this.showOverlay(new MenuScene(
+      () => this.showPlayerSetup(),
+      () => this.showNameInput(),
+    ));
+  }
+
+  private showPlayerSetup(): void {
+    this.showOverlay(new PlayerSetupScene(
+      (players, scoreToWin) => this.startLocal(players, scoreToWin),
+      () => this.showMenu(),
+    ));
+  }
+
+  private startLocal(players: LocalPlayerSetup[], scoreToWin: number): void {
+    this.activeOverlay?.unmount();
+    this.activeOverlay = undefined;
+
+    // Tear down previous local game if any
+    this.localScene?.stop();
+    this.localRenderer?.destroy();
+
+    const ids = players.map((p) => p.id);
+    this.localEngine = new GameEngine(ids, scoreToWin);
+    this.localRenderer = new GameRenderer(this.pixiApp, this.trailLayer, ids, scoreToWin);
     this.localScene = new GameScene(
-      this.pixiApp, this.localEngine, this.input, this.trailLayer, this.localRenderer,
+      this.pixiApp, this.localEngine, this.input, this.trailLayer, this.localRenderer, players,
     );
 
-    // ── Local audio + visual event wiring ─────────────────────
     this.localEngine.on('phaseChange', (phase) => {
       if (phase === 'countdown') {
         this.trailLayer.clear();
@@ -78,30 +102,17 @@ export class App {
     this.localEngine.on('eraseZone', (x, y, r) => this.trailLayer.erase(x, y, r));
 
     this.localEngine.on('gameOver', (winnerId) => {
-      this.localScene.stop();
-      const players: PlayerResult[] = PLAYER_CONFIGS.map((p) => ({
+      this.localScene!.stop();
+      const results: PlayerResult[] = players.map((p) => ({
         id: p.id, name: p.name, colorHex: p.colorHex,
       }));
-      const scene = new GameOverScene(winnerId, players, this.localEngine.scores.getScores(), () => {
+      const scene = new GameOverScene(winnerId, results, this.localEngine!.scores.getScores(), () => {
         scene.unmount();
         this.showMenu();
       });
       this.showOverlay(scene);
     });
 
-    this.showMenu();
-  }
-
-  private showMenu(): void {
-    this.showOverlay(new MenuScene(
-      () => this.startLocal(),
-      () => this.showNameInput(),
-    ));
-  }
-
-  private startLocal(): void {
-    this.activeOverlay?.unmount();
-    this.activeOverlay = undefined;
     this.localScene.start();
   }
 
@@ -109,12 +120,12 @@ export class App {
 
   private showNameInput(): void {
     this.showOverlay(new NameInputScene(
-      (name) => this.startOnline(name),
+      (name, roomId) => this.startOnline(name, roomId),
       () => this.showMenu(),
     ));
   }
 
-  private async startOnline(playerName: string): Promise<void> {
+  private async startOnline(playerName: string, roomId?: string): Promise<void> {
     this.activeOverlay?.unmount();
 
     const connecting = document.createElement('div');
@@ -132,7 +143,7 @@ export class App {
     }
 
     connecting.remove();
-    this.network.join(playerName);
+    this.network.join(playerName, roomId);
 
     this.network.on('room_joined', (payload) => {
       const lobby = new LobbyScene(payload.roomId, () => {

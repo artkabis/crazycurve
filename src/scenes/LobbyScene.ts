@@ -9,9 +9,13 @@ export class LobbyScene {
     this.el.className = 'overlay lobby';
     this.el.innerHTML = `
       <h2>WAITING FOR PLAYERS</h2>
-      <p class="room-code">Room&nbsp;<strong>${roomId}</strong></p>
+      <div class="room-code-box">
+        <p class="room-code-label">ROOM CODE</p>
+        <p class="room-code-value">${roomId}</p>
+        <p class="room-code-hint">share with friends to join</p>
+      </div>
       <ul class="player-list" id="cc-players"></ul>
-      <p class="hint">Minimum 2 players to start</p>
+      <p class="hint">Game starts automatically when 2+ players join</p>
       <button class="btn-action" id="cc-cancel">✕ &nbsp;CANCEL</button>
     `;
     this.playerList = this.el.querySelector('#cc-players')!;

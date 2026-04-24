@@ -2,7 +2,7 @@ import type { Server, Socket } from 'socket.io';
 import { GameEngine } from '../../../src/core/GameEngine.ts';
 import {
   SERVER_TICK_MS,
-  ROUNDS_TO_WIN,
+  SCORE_TO_WIN,
   getPalette,
   MIN_PLAYERS,
   MAX_PLAYERS,
@@ -142,7 +142,7 @@ export class Room {
 
     this.io.to(this.id).emit('tick', payload);
 
-    if (engine.scores.getWinner(ROUNDS_TO_WIN) !== null) {
+    if (engine.scores.getWinner(SCORE_TO_WIN) !== null) {
       this.stopLoop();
     }
   }

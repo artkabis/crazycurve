@@ -1,6 +1,6 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import type { Application } from 'pixi.js';
-import { ARENA_WIDTH, ARENA_HEIGHT, PLAYER_PALETTE, POWERUP_CONFIGS } from '../core/constants.ts';
+import { ARENA_WIDTH, ARENA_HEIGHT, PLAYER_PALETTE, POWERUP_CONFIGS, SCORE_TO_WIN } from '../core/constants.ts';
 import type { IGameState, PowerUpType } from '../core/types.ts';
 import type { TrailLayer } from './TrailLayer.ts';
 import { PowerUpLayer } from './PowerUpLayer.ts';
@@ -18,11 +18,18 @@ export class GameRenderer {
   private readonly effectSprites = new Map<number, Map<PowerUpType, Text>>();
   private readonly prevEffectKeys = new Map<number, string>();
 
+  // For destroy()
+  private readonly ownedChildren: Container[] = [];
+  private readonly trailSprite: Container;
+
   constructor(
-    app: Application,
+    private readonly app: Application,
     trailLayer: TrailLayer,
     playerIds: readonly number[],
+    private readonly scoreToWin: number = SCORE_TO_WIN,
   ) {
+    this.trailSprite = trailLayer.sprite as unknown as Container;
+
     const border = new Graphics();
     border.rect(1, 1, ARENA_WIDTH - 2, ARENA_HEIGHT - 2).stroke({ color: 0x222222, width: 2 });
 
@@ -39,6 +46,14 @@ export class GameRenderer {
     app.stage.addChild(hudLayer);
     app.stage.addChild(overlayLayer);
 
+    this.ownedChildren.push(
+      border,
+      this.powerUpLayer.displayObject as unknown as Container,
+      headsLayer,
+      hudLayer,
+      overlayLayer,
+    );
+
     // ── Curve head dots ────────────────────────────────────────
     for (const id of playerIds) {
       const g = new Graphics();
@@ -51,9 +66,8 @@ export class GameRenderer {
       const palette = PLAYER_PALETTE.find((p) => p.id === id)!;
       const baseX = 10 + idx * 140;
 
-      // Score label
       const score = new Text({
-        text: `${palette.name}: 0`,
+        text: `${palette.name}: 0/${this.scoreToWin}`,
         style: new TextStyle({ fontFamily: 'Courier New', fontSize: 13, fill: palette.color }),
       });
       score.x = baseX;
@@ -61,14 +75,12 @@ export class GameRenderer {
       hudLayer.addChild(score);
       this.scoreTexts.set(id, score);
 
-      // Effect badges container (above score)
       const effectContainer = new Container();
       effectContainer.x = baseX;
       effectContainer.y = ARENA_HEIGHT - 34;
       hudLayer.addChild(effectContainer);
       this.effectContainers.set(id, effectContainer);
 
-      // Pre-allocate one Text per power-up type, hidden by default
       const sprites = new Map<PowerUpType, Text>();
       for (const cfg of POWERUP_CONFIGS) {
         const t = new Text({
@@ -121,6 +133,15 @@ export class GameRenderer {
     this.setOverlayVisible(false);
   }
 
+  destroy(): void {
+    this.app.stage.removeChild(this.trailSprite);
+    for (const child of this.ownedChildren) {
+      this.app.stage.removeChild(child);
+      child.destroy({ children: true });
+    }
+    this.ownedChildren.length = 0;
+  }
+
   renderFrame(state: IGameState): void {
     this.syncHeads(state);
     this.syncHUD(state);
@@ -147,7 +168,6 @@ export class GameRenderer {
           .stroke({ color: 0x00ffcc, width: 2, alpha: pulse });
       }
 
-      // Direction arrow shown during countdown
       if (showArrow) {
         const len = 22;
         const ax = curve.x + Math.cos(curve.angle) * len;
@@ -162,7 +182,7 @@ export class GameRenderer {
   private syncHUD(state: IGameState): void {
     for (const [id, text] of this.scoreTexts) {
       const palette = PLAYER_PALETTE.find((p) => p.id === id)!;
-      text.text = `${palette.name}: ${state.getScore(id)}`;
+      text.text = `${palette.name}: ${state.getScore(id)}/${this.scoreToWin}`;
     }
     this.roundLabel.text = `Round ${state.round}`;
   }
@@ -172,18 +192,15 @@ export class GameRenderer {
       const curve = state.curves.find((c) => c.id === id);
       const effectKey = curve ? [...curve.activeEffects].sort().join(',') : '';
 
-      // Skip redraw if nothing changed
       if (effectKey === this.prevEffectKeys.get(id)) continue;
       this.prevEffectKeys.set(id, effectKey);
 
       const sprites = this.effectSprites.get(id)!;
 
-      // Hide all first
       for (const s of sprites.values()) s.visible = false;
 
       if (!curve || curve.activeEffects.length === 0) continue;
 
-      // Show active effects in config order, positioned left-to-right
       let xOffset = 0;
       for (const cfg of POWERUP_CONFIGS) {
         if (!curve.activeEffects.includes(cfg.type)) continue;
