@@ -7,14 +7,14 @@ export const ARENA_HEIGHT = 600;
 // ── Physics ────────────────────────────────────────────────────
 export const PLAYER_SPEED = 2.5;
 export const TURN_RATE = 0.042;
-export const TRAIL_RADIUS = 2.5;
+export const TRAIL_RADIUS = 3.5;
 
 // ── Gap mechanic ───────────────────────────────────────────────
-export const GAP_INTERVAL_MIN = 200;
-export const GAP_INTERVAL_MAX = 380;
-export const GAP_DURATION_MIN = 14;
-export const GAP_DURATION_MAX = 24;
-export const STARTUP_GAP_FRAMES = 80;
+export const GAP_INTERVAL_MIN = 150;  // ticks ≈ 5 s at 30 Hz
+export const GAP_INTERVAL_MAX = 280;  // ticks ≈ 9 s
+export const GAP_DURATION_MIN = 18;   // ticks ≈ 0.6 s
+export const GAP_DURATION_MAX = 32;   // ticks ≈ 1.1 s
+export const STARTUP_GAP_FRAMES = 40; // ticks ≈ 1.3 s before first trail
 
 // ── Game rules ─────────────────────────────────────────────────
 export const SCORE_TO_WIN = 10; // first player to reach this wins

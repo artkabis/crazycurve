@@ -6,6 +6,15 @@ import type { TrailLayer } from './TrailLayer.ts';
 import { PowerUpLayer } from './PowerUpLayer.ts';
 import { buildBackground } from './Background.ts';
 
+interface Particle {
+  x: number; y: number;
+  vx: number; vy: number;
+  alpha: number;
+  color: number;
+  radius: number;
+  decay: number;
+}
+
 export class GameRenderer {
   private readonly headGraphics = new Map<number, Graphics>();
   private readonly scoreTexts = new Map<number, Text>();
@@ -18,6 +27,14 @@ export class GameRenderer {
   private readonly effectContainers = new Map<number, Container>();
   private readonly effectSprites = new Map<number, Map<PowerUpType, Text>>();
   private readonly prevEffectKeys = new Map<number, string>();
+
+  // Death particles
+  private readonly particles: Particle[] = [];
+  private readonly particleGraphics: Graphics;
+  private readonly prevAlive = new Map<number, boolean>();
+
+  // Name tags shown during countdown
+  private readonly nameTags = new Map<number, Text>();
 
   // For destroy()
   private readonly ownedChildren: Container[] = [];
@@ -53,11 +70,34 @@ export class GameRenderer {
       overlayLayer,
     );
 
+    // ── Particle canvas (drawn first so heads appear on top) ───
+    this.particleGraphics = new Graphics();
+    headsLayer.addChild(this.particleGraphics);
+
     // ── Curve head dots ────────────────────────────────────────
     for (const id of playerIds) {
       const g = new Graphics();
       headsLayer.addChild(g);
       this.headGraphics.set(id, g);
+      this.prevAlive.set(id, true);
+    }
+
+    // ── Name tags (shown during countdown) ────────────────────
+    for (const id of playerIds) {
+      const palette = PLAYER_PALETTE.find((p) => p.id === id)!;
+      const tag = new Text({
+        text: palette.name,
+        style: new TextStyle({
+          fontFamily: 'Courier New',
+          fontSize: 11,
+          fontWeight: 'bold',
+          fill: palette.color,
+          dropShadow: { distance: 0, blur: 6, color: 0x000000, alpha: 0.9 },
+        }),
+      });
+      tag.visible = false;
+      headsLayer.addChild(tag);
+      this.nameTags.set(id, tag);
     }
 
     // ── Score + effect HUD ─────────────────────────────────────
@@ -151,30 +191,111 @@ export class GameRenderer {
 
   private syncHeads(state: IGameState): void {
     const showArrow = state.phase === 'countdown';
+    const showNames = state.phase === 'countdown';
+
+    // Detect deaths → burst of particles
+    for (const curve of state.curves) {
+      const wasAlive = this.prevAlive.get(curve.id) ?? true;
+      if (wasAlive && !curve.alive) this.spawnParticles(curve.x, curve.y, curve.id);
+      this.prevAlive.set(curve.id, curve.alive);
+    }
+
+    // Draw + age particles
+    this.tickParticles();
 
     for (const curve of state.curves) {
+      const palette = PLAYER_PALETTE.find((p) => p.id === curve.id)!;
       const g = this.headGraphics.get(curve.id);
       if (!g) continue;
       g.clear();
+
       if (!curve.alive) continue;
 
       const alpha = curve.ghostTrail ? 0.35 : 1;
-      g.circle(curve.x, curve.y, curve.trailRadius + 2).fill({ color: 0xffffff, alpha });
 
+      // Outer coloured halo (identifies which player is which)
+      g.circle(curve.x, curve.y, curve.trailRadius + 5)
+        .fill({ color: palette.color, alpha: 0.3 * alpha });
+
+      // White core dot
+      g.circle(curve.x, curve.y, curve.trailRadius + 1.5)
+        .fill({ color: 0xffffff, alpha });
+
+      // Shield ring
       if (curve.activeEffects.includes('shield')) {
         const pulse = 0.6 + Math.sin(Date.now() / 150) * 0.4;
-        g.circle(curve.x, curve.y, curve.trailRadius + 7)
+        g.circle(curve.x, curve.y, curve.trailRadius + 9)
           .stroke({ color: 0x00ffcc, width: 2, alpha: pulse });
       }
 
+      // Direction arrow (countdown only) with arrowhead
       if (showArrow) {
-        const len = 22;
-        const ax = curve.x + Math.cos(curve.angle) * len;
-        const ay = curve.y + Math.sin(curve.angle) * len;
-        g.moveTo(curve.x, curve.y)
-          .lineTo(ax, ay)
-          .stroke({ color: 0xffffff, width: 1.5, alpha: 0.55 });
+        const len = 28;
+        const ex = curve.x + Math.cos(curve.angle) * len;
+        const ey = curve.y + Math.sin(curve.angle) * len;
+        const hw = 8;
+        const hs = 0.55;
+        g.moveTo(curve.x, curve.y).lineTo(ex, ey)
+          .stroke({ color: palette.color, width: 2, alpha: 0.85 });
+        g.moveTo(ex, ey)
+          .lineTo(
+            ex + Math.cos(curve.angle + Math.PI + hs) * hw,
+            ey + Math.sin(curve.angle + Math.PI + hs) * hw,
+          )
+          .stroke({ color: palette.color, width: 2, alpha: 0.85 });
+        g.moveTo(ex, ey)
+          .lineTo(
+            ex + Math.cos(curve.angle + Math.PI - hs) * hw,
+            ey + Math.sin(curve.angle + Math.PI - hs) * hw,
+          )
+          .stroke({ color: palette.color, width: 2, alpha: 0.85 });
       }
+
+      // Name tag above head
+      const tag = this.nameTags.get(curve.id);
+      if (tag) {
+        tag.visible = showNames;
+        if (showNames) {
+          tag.x = curve.x - tag.width / 2;
+          tag.y = curve.y - curve.trailRadius - 18;
+        }
+      }
+    }
+
+    // Hide name tags for dead / non-countdown frames
+    if (!showNames) {
+      for (const tag of this.nameTags.values()) tag.visible = false;
+    }
+  }
+
+  private spawnParticles(x: number, y: number, id: number): void {
+    const palette = PLAYER_PALETTE.find((p) => p.id === id)!;
+    for (let i = 0; i < 18; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 1.2 + Math.random() * 4;
+      this.particles.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        alpha: 1,
+        color: palette.color,
+        radius: 1.5 + Math.random() * 2.5,
+        decay: 0.022 + Math.random() * 0.018,
+      });
+    }
+  }
+
+  private tickParticles(): void {
+    this.particleGraphics.clear();
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vx *= 0.93;
+      p.vy *= 0.93;
+      p.alpha -= p.decay;
+      if (p.alpha <= 0) { this.particles.splice(i, 1); continue; }
+      this.particleGraphics.circle(p.x, p.y, p.radius).fill({ color: p.color, alpha: p.alpha });
     }
   }
 

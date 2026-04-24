@@ -1,12 +1,11 @@
 import { Container, Graphics } from 'pixi.js';
 import { ARENA_WIDTH, ARENA_HEIGHT } from '../core/constants.ts';
 
-const GRID_STEP = 80;
-const GRID_COLOR = 0x6666bb;
-const GRID_ALPHA = 0.035;
+const GRID_STEP   = 80;
+const GRID_COLOR  = 0x6666bb;
 const BORDER_COLOR = 0x3344cc;
 
-/** Static decorative background: dark fill, faint grid, glowing border. */
+/** Static decorative background: dark fill, faint grid, glowing border, centre glow. */
 export function buildBackground(): Container {
   const c = new Container();
   const g = new Graphics();
@@ -17,26 +16,36 @@ export function buildBackground(): Container {
   // ── Subtle grid ────────────────────────────────────────────
   for (let x = GRID_STEP; x < ARENA_WIDTH; x += GRID_STEP) {
     g.moveTo(x, 0).lineTo(x, ARENA_HEIGHT)
-      .stroke({ color: GRID_COLOR, alpha: GRID_ALPHA, width: 1 });
+      .stroke({ color: GRID_COLOR, alpha: 0.055, width: 1 });
   }
   for (let y = GRID_STEP; y < ARENA_HEIGHT; y += GRID_STEP) {
     g.moveTo(0, y).lineTo(ARENA_WIDTH, y)
-      .stroke({ color: GRID_COLOR, alpha: GRID_ALPHA, width: 1 });
+      .stroke({ color: GRID_COLOR, alpha: 0.055, width: 1 });
   }
 
-  // ── Edge vignette (4 thin dark bands) ─────────────────────
-  const vw = 36;
-  g.rect(0, 0, vw, ARENA_HEIGHT).fill({ color: 0x000000, alpha: 0.22 });
-  g.rect(ARENA_WIDTH - vw, 0, vw, ARENA_HEIGHT).fill({ color: 0x000000, alpha: 0.22 });
-  g.rect(0, 0, ARENA_WIDTH, vw).fill({ color: 0x000000, alpha: 0.22 });
-  g.rect(0, ARENA_HEIGHT - vw, ARENA_WIDTH, vw).fill({ color: 0x000000, alpha: 0.22 });
+  // ── Radial centre glow (3 nested ellipses, very faint) ────
+  const cx = ARENA_WIDTH / 2;
+  const cy = ARENA_HEIGHT / 2;
+  g.ellipse(cx, cy, ARENA_WIDTH * 0.55, ARENA_HEIGHT * 0.55)
+    .fill({ color: 0x1a1a44, alpha: 0.09 });
+  g.ellipse(cx, cy, ARENA_WIDTH * 0.35, ARENA_HEIGHT * 0.35)
+    .fill({ color: 0x1a1a44, alpha: 0.07 });
+  g.ellipse(cx, cy, ARENA_WIDTH * 0.18, ARENA_HEIGHT * 0.18)
+    .fill({ color: 0x1a1a44, alpha: 0.05 });
 
-  // ── Border glow (outer) ────────────────────────────────────
+  // ── Edge vignette (4 thin dark bands) ─────────────────────
+  const vw = 40;
+  g.rect(0, 0, vw, ARENA_HEIGHT).fill({ color: 0x000000, alpha: 0.28 });
+  g.rect(ARENA_WIDTH - vw, 0, vw, ARENA_HEIGHT).fill({ color: 0x000000, alpha: 0.28 });
+  g.rect(0, 0, ARENA_WIDTH, vw).fill({ color: 0x000000, alpha: 0.28 });
+  g.rect(0, ARENA_HEIGHT - vw, ARENA_WIDTH, vw).fill({ color: 0x000000, alpha: 0.28 });
+
+  // ── Border glow (outer soft) ──────────────────────────────
   g.rect(0, 0, ARENA_WIDTH, ARENA_HEIGHT)
-    .stroke({ color: BORDER_COLOR, width: 8, alpha: 0.12 });
-  // ── Border sharp (inner) ──────────────────────────────────
+    .stroke({ color: BORDER_COLOR, width: 10, alpha: 0.15 });
+  // ── Border sharp (inner) ─────────────────────────────────
   g.rect(1, 1, ARENA_WIDTH - 2, ARENA_HEIGHT - 2)
-    .stroke({ color: BORDER_COLOR, width: 2, alpha: 0.55 });
+    .stroke({ color: BORDER_COLOR, width: 2, alpha: 0.6 });
 
   c.addChild(g);
   return c;

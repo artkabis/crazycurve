@@ -57,12 +57,12 @@ export class TrailLayer {
 
       const palette = getPalette(curve.id);
 
-      // Soft glow halo (two layers, low alpha)
+      // Glow halos (outer → inner, accumulated into RenderTexture)
       for (const pt of curve.newPoints) {
-        this.brush.circle(pt.x, pt.y, curve.trailRadius * 3.5)
-          .fill({ color: palette.color, alpha: 0.055 });
-        this.brush.circle(pt.x, pt.y, curve.trailRadius * 2.0)
-          .fill({ color: palette.color, alpha: 0.11 });
+        this.brush.circle(pt.x, pt.y, curve.trailRadius * 3.2)
+          .fill({ color: palette.color, alpha: 0.045 });
+        this.brush.circle(pt.x, pt.y, curve.trailRadius * 1.9)
+          .fill({ color: palette.color, alpha: 0.10 });
       }
       // Solid core
       for (const pt of curve.newPoints) {
