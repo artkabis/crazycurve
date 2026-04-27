@@ -1,52 +1,87 @@
 import { Container, Graphics } from 'pixi.js';
 import { ARENA_WIDTH, ARENA_HEIGHT } from '../core/constants.ts';
 
-const GRID_STEP   = 80;
-const GRID_COLOR  = 0x6666bb;
-const BORDER_COLOR = 0x3344cc;
+export interface RoundTheme {
+  name: string;
+  bg: number;
+  primary: number;
+  grid: number;
+  glow: number;
+}
 
-/** Static decorative background: dark fill, faint grid, glowing border, centre glow. */
-export function buildBackground(): Container {
-  const c = new Container();
-  const g = new Graphics();
+export const ROUND_THEMES: readonly RoundTheme[] = [
+  { name: 'ELECTRIC', bg: 0x07070e, primary: 0x3344cc, grid: 0x6666bb, glow: 0x4466ff },
+  { name: 'INFERNO',  bg: 0x0e0704, primary: 0xcc3311, grid: 0xbb5544, glow: 0xff5533 },
+  { name: 'MATRIX',   bg: 0x040e07, primary: 0x117733, grid: 0x44bb66, glow: 0x00ff55 },
+  { name: 'COSMIC',   bg: 0x080410, primary: 0x7711bb, grid: 0x886699, glow: 0xbb55ff },
+  { name: 'SOLAR',    bg: 0x0e0900, primary: 0xaa7700, grid: 0xbbaa44, glow: 0xffaa00 },
+  { name: 'ARCTIC',   bg: 0x04090e, primary: 0x117799, grid: 0x44aacc, glow: 0x00ddff },
+];
 
-  // ── Dark base ──────────────────────────────────────────────
-  g.rect(0, 0, ARENA_WIDTH, ARENA_HEIGHT).fill({ color: 0x07070e });
+export function getTheme(round: number): RoundTheme {
+  return ROUND_THEMES[Math.max(0, (round - 1)) % ROUND_THEMES.length];
+}
 
-  // ── Subtle grid ────────────────────────────────────────────
-  for (let x = GRID_STEP; x < ARENA_WIDTH; x += GRID_STEP) {
-    g.moveTo(x, 0).lineTo(x, ARENA_HEIGHT)
-      .stroke({ color: GRID_COLOR, alpha: 0.055, width: 1 });
+export class Background {
+  private readonly container: Container;
+  private readonly g: Graphics;
+  private currentRound = -1;
+
+  constructor() {
+    this.container = new Container();
+    this.g = new Graphics();
+    this.container.addChild(this.g);
+    this.rebuild(1);
   }
-  for (let y = GRID_STEP; y < ARENA_HEIGHT; y += GRID_STEP) {
-    g.moveTo(0, y).lineTo(ARENA_WIDTH, y)
-      .stroke({ color: GRID_COLOR, alpha: 0.055, width: 1 });
+
+  get displayObject(): Container { return this.container; }
+
+  update(round: number): void {
+    if (round === this.currentRound) return;
+    this.currentRound = round;
+    this.rebuild(round);
   }
 
-  // ── Radial centre glow (3 nested ellipses, very faint) ────
-  const cx = ARENA_WIDTH / 2;
-  const cy = ARENA_HEIGHT / 2;
-  g.ellipse(cx, cy, ARENA_WIDTH * 0.55, ARENA_HEIGHT * 0.55)
-    .fill({ color: 0x1a1a44, alpha: 0.09 });
-  g.ellipse(cx, cy, ARENA_WIDTH * 0.35, ARENA_HEIGHT * 0.35)
-    .fill({ color: 0x1a1a44, alpha: 0.07 });
-  g.ellipse(cx, cy, ARENA_WIDTH * 0.18, ARENA_HEIGHT * 0.18)
-    .fill({ color: 0x1a1a44, alpha: 0.05 });
+  private rebuild(round: number): void {
+    const t = getTheme(round);
+    const w = ARENA_WIDTH;
+    const h = ARENA_HEIGHT;
+    this.g.clear();
 
-  // ── Edge vignette (4 thin dark bands) ─────────────────────
-  const vw = 40;
-  g.rect(0, 0, vw, ARENA_HEIGHT).fill({ color: 0x000000, alpha: 0.28 });
-  g.rect(ARENA_WIDTH - vw, 0, vw, ARENA_HEIGHT).fill({ color: 0x000000, alpha: 0.28 });
-  g.rect(0, 0, ARENA_WIDTH, vw).fill({ color: 0x000000, alpha: 0.28 });
-  g.rect(0, ARENA_HEIGHT - vw, ARENA_WIDTH, vw).fill({ color: 0x000000, alpha: 0.28 });
+    // Dark tinted base
+    this.g.rect(0, 0, w, h).fill({ color: t.bg });
 
-  // ── Border glow (outer soft) ──────────────────────────────
-  g.rect(0, 0, ARENA_WIDTH, ARENA_HEIGHT)
-    .stroke({ color: BORDER_COLOR, width: 10, alpha: 0.15 });
-  // ── Border sharp (inner) ─────────────────────────────────
-  g.rect(1, 1, ARENA_WIDTH - 2, ARENA_HEIGHT - 2)
-    .stroke({ color: BORDER_COLOR, width: 2, alpha: 0.6 });
+    // Subtle grid in theme colour
+    const GS = 60;
+    for (let x = GS; x < w; x += GS) {
+      this.g.moveTo(x, 0).lineTo(x, h).stroke({ color: t.grid, alpha: 0.055, width: 1 });
+    }
+    for (let y = GS; y < h; y += GS) {
+      this.g.moveTo(0, y).lineTo(w, y).stroke({ color: t.grid, alpha: 0.055, width: 1 });
+    }
 
-  c.addChild(g);
-  return c;
+    // Corner L-shaped accents
+    const cl = 28, ca = 0.5;
+    this.g.moveTo(0, cl).lineTo(0, 0).lineTo(cl, 0).stroke({ color: t.glow, width: 2, alpha: ca });
+    this.g.moveTo(w - cl, 0).lineTo(w, 0).lineTo(w, cl).stroke({ color: t.glow, width: 2, alpha: ca });
+    this.g.moveTo(0, h - cl).lineTo(0, h).lineTo(cl, h).stroke({ color: t.glow, width: 2, alpha: ca });
+    this.g.moveTo(w - cl, h).lineTo(w, h).lineTo(w, h - cl).stroke({ color: t.glow, width: 2, alpha: ca });
+
+    // Radial centre glow
+    const cx = w / 2, cy = h / 2;
+    this.g.ellipse(cx, cy, w * 0.5, h * 0.5).fill({ color: t.primary, alpha: 0.045 });
+    this.g.ellipse(cx, cy, w * 0.28, h * 0.28).fill({ color: t.primary, alpha: 0.03 });
+
+    // Edge vignette
+    const vw = 48;
+    this.g.rect(0, 0, vw, h).fill({ color: 0x000000, alpha: 0.25 });
+    this.g.rect(w - vw, 0, vw, h).fill({ color: 0x000000, alpha: 0.25 });
+    this.g.rect(0, 0, w, vw).fill({ color: 0x000000, alpha: 0.25 });
+    this.g.rect(0, h - vw, w, vw).fill({ color: 0x000000, alpha: 0.25 });
+
+    // Border glow (outer soft)
+    this.g.rect(0, 0, w, h).stroke({ color: t.glow, width: 14, alpha: 0.12 });
+    // Border sharp (inner)
+    this.g.rect(1, 1, w - 2, h - 2).stroke({ color: t.primary, width: 2, alpha: 0.65 });
+  }
 }
