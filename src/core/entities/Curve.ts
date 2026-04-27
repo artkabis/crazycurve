@@ -122,8 +122,15 @@ export class Curve {
     const nx = this.x + Math.cos(this.angle) * this.speed;
     const ny = this.y + Math.sin(this.angle) * this.speed;
 
+    // Check collision at the leading edge of the head (center + trailRadius forward).
+    // Distance from last paint center = speed + trailRadius > trailRadius, so we
+    // never land inside our own freshly painted circle (fixes immediate self-collision
+    // caused by PLAYER_SPEED < TRAIL_RADIUS).
+    const leadX = nx + Math.cos(this.angle) * this.trailRadius;
+    const leadY = ny + Math.sin(this.angle) * this.trailRadius;
+
     const hitWall  = collision.checkWall(nx, ny, this.trailRadius);
-    const hitTrail = !this.gapActive && !this.ghostTrail && collision.checkTrail(nx, ny);
+    const hitTrail = !this.gapActive && !this.ghostTrail && collision.checkTrail(leadX, leadY);
 
     if (hitWall) { this.alive = false; return; }
     if (hitTrail) {
