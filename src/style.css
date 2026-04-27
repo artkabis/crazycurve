@@ -18,14 +18,19 @@ body {
   user-select: none;
 }
 
-/* ── App shell ─────────────────────────────────────────────── */
+/* ── App shell ──────────────────────────────────────── */
 #app {
   position: relative;
-  line-height: 1;
+  line-height: 0;
+  /* Constrain to 4:3 within viewport, max 800 × 600 */
+  width: min(100vw, calc(100vh * 800 / 600), 800px);
 }
 
 #app canvas {
   display: block;
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 800 / 600;
 }
 
 /* UI overlay sits on top of the canvas */
@@ -55,7 +60,7 @@ body {
   padding: 40px;
 }
 
-/* ── Menu ───────────────────────────────────────────────────── */
+/* ── Menu ────────────────────────────────────────────────── */
 .menu h1 {
   font-size: 56px;
   font-weight: bold;
@@ -80,7 +85,7 @@ body {
   color: #fff;
 }
 
-/* ── Game over ──────────────────────────────────────────────── */
+/* ── Game over ─────────────────────────────────────────────── */
 .gameover h2 {
   font-size: 48px;
   font-weight: bold;
@@ -102,7 +107,7 @@ body {
   font-weight: bold;
 }
 
-/* ── Shared button ──────────────────────────────────────────── */
+/* ── Shared button ─────────────────────────────────────────────── */
 .btn-action {
   background: transparent;
   border: 2px solid #fff;
@@ -130,7 +135,7 @@ body {
   letter-spacing: 2px;
 }
 
-/* ── Menu buttons row ───────────────────────────────────────── */
+/* ── Menu buttons row ───────────────────────────────────────────── */
 .menu-btns {
   display: flex;
   gap: 16px;
@@ -148,13 +153,12 @@ body {
   color: #04040a;
 }
 
-/* ── Lobby ──────────────────────────────────────────────────── */
+/* ── Lobby ───────────────────────────────────────────────────── */
 .lobby h2 {
   font-size: 28px;
   letter-spacing: 6px;
   color: #fff;
 }
-
 
 .player-list {
   list-style: none;
@@ -166,7 +170,7 @@ body {
   text-align: center;
 }
 
-/* ── Name input ─────────────────────────────────────────────── */
+/* ── Name input ───────────────────────────────────────────────── */
 .name-input h2 {
   font-size: 36px;
   letter-spacing: 8px;
@@ -219,7 +223,7 @@ body {
   color: #aaa;
 }
 
-/* ── Player Setup ───────────────────────────────────────────── */
+/* ── Player Setup ───────────────────────────────────────────────── */
 .setup h2.setup-title {
   font-size: 30px;
   letter-spacing: 6px;
@@ -333,7 +337,7 @@ body {
   to   { border-color: #1a3a55; box-shadow: none; }
 }
 
-/* ── Online mode selection ──────────────────────────────────── */
+/* ── Online mode selection ───────────────────────────────────────────── */
 .mode-player-name {
   color: #aaa;
   font-size: 13px;
@@ -385,7 +389,7 @@ body {
   white-space: nowrap;
 }
 
-/* ── Lobby room code box ────────────────────────────────────── */
+/* ── Lobby room code box ────────────────────────────────────────────── */
 .room-code-box {
   text-align: center;
   background: #0d0d14;
@@ -405,7 +409,7 @@ body {
   color: #fff;
   letter-spacing: 14px;
   font-weight: bold;
-  padding-left: 14px; /* optical center for letter-spacing */
+  padding-left: 14px;
 }
 
 .room-code-hint {
@@ -415,7 +419,7 @@ body {
   margin-top: 6px;
 }
 
-/* ── Scoreboard rows ────────────────────────────────────────── */
+/* ── Scoreboard rows ────────────────────────────────────────────────── */
 .score-row {
   display: flex;
   justify-content: space-between;
@@ -440,7 +444,7 @@ body {
   opacity: 0.8;
 }
 
-/* ── Reconnecting overlay ───────────────────────────────────── */
+/* ── Reconnecting overlay ────────────────────────────────────────────── */
 .reconnecting {
   background: rgba(4, 4, 10, 0.82);
   pointer-events: none;
@@ -472,7 +476,7 @@ body {
   to   { opacity: 0.25; }
 }
 
-/* ── Negative mode hint (shown in menu) ─────────────────────── */
+/* ── Negative mode hint ──────────────────────────────────────────────── */
 .hint-key {
   display: inline-block;
   border: 1px solid #333;
