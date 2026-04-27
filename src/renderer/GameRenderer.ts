@@ -4,7 +4,7 @@ import { ARENA_WIDTH, ARENA_HEIGHT, PLAYER_PALETTE, POWERUP_CONFIGS, SCORE_TO_WI
 import type { IGameState, PowerUpType } from '../core/types.ts';
 import type { TrailLayer } from './TrailLayer.ts';
 import { PowerUpLayer } from './PowerUpLayer.ts';
-import { buildBackground } from './Background.ts';
+import { Background, getTheme } from './Background.ts';
 
 interface Particle {
   x: number; y: number;
@@ -16,27 +16,29 @@ interface Particle {
 }
 
 export class GameRenderer {
+  private readonly bg: Background;
   private readonly headGraphics = new Map<number, Graphics>();
   private readonly scoreTexts = new Map<number, Text>();
   private readonly dimOverlay: Graphics;
   private readonly centerText: Text;
   private readonly roundLabel: Text;
+  private readonly themeLabel: Text;
+  private readonly roundCountdownLabel: Text;
   private readonly powerUpLayer: PowerUpLayer;
 
-  // Effect badges: pre-allocated one Text per (player, effect type)
   private readonly effectContainers = new Map<number, Container>();
   private readonly effectSprites = new Map<number, Map<PowerUpType, Text>>();
   private readonly prevEffectKeys = new Map<number, string>();
 
-  // Death particles
   private readonly particles: Particle[] = [];
   private readonly particleGraphics: Graphics;
   private readonly prevAlive = new Map<number, boolean>();
 
-  // Name tags shown during countdown
   private readonly nameTags = new Map<number, Text>();
 
-  // For destroy()
+  private prevRound = 0;
+  private themeLabelTimer = 0;
+
   private readonly ownedChildren: Container[] = [];
   private readonly trailSprite: Container;
 
@@ -48,14 +50,14 @@ export class GameRenderer {
   ) {
     this.trailSprite = trailLayer.sprite as unknown as Container;
 
-    const bg = buildBackground();
+    this.bg = new Background();
     const headsLayer = new Container();
     const hudLayer = new Container();
     const overlayLayer = new Container();
 
     this.powerUpLayer = new PowerUpLayer();
 
-    app.stage.addChild(bg);
+    app.stage.addChild(this.bg.displayObject);
     app.stage.addChild(trailLayer.sprite);
     app.stage.addChild(this.powerUpLayer.displayObject);
     app.stage.addChild(headsLayer);
@@ -63,18 +65,16 @@ export class GameRenderer {
     app.stage.addChild(overlayLayer);
 
     this.ownedChildren.push(
-      bg,
+      this.bg.displayObject,
       this.powerUpLayer.displayObject as unknown as Container,
       headsLayer,
       hudLayer,
       overlayLayer,
     );
 
-    // ── Particle canvas (drawn first so heads appear on top) ───
     this.particleGraphics = new Graphics();
     headsLayer.addChild(this.particleGraphics);
 
-    // ── Curve head dots ────────────────────────────────────────
     for (const id of playerIds) {
       const g = new Graphics();
       headsLayer.addChild(g);
@@ -82,7 +82,6 @@ export class GameRenderer {
       this.prevAlive.set(id, true);
     }
 
-    // ── Name tags (shown during countdown) ────────────────────
     for (const id of playerIds) {
       const palette = PLAYER_PALETTE.find((p) => p.id === id)!;
       const tag = new Text({
@@ -100,14 +99,18 @@ export class GameRenderer {
       this.nameTags.set(id, tag);
     }
 
-    // ── Score + effect HUD ─────────────────────────────────────
     playerIds.forEach((id, idx) => {
       const palette = PLAYER_PALETTE.find((p) => p.id === id)!;
       const baseX = 10 + idx * 140;
 
       const score = new Text({
         text: `${palette.name}: 0/${this.scoreToWin}`,
-        style: new TextStyle({ fontFamily: 'Courier New', fontSize: 13, fill: palette.color }),
+        style: new TextStyle({
+          fontFamily: 'Courier New',
+          fontSize: 13,
+          fill: palette.color,
+          dropShadow: { distance: 0, blur: 4, color: 0x000000, alpha: 0.8 },
+        }),
       });
       score.x = baseX;
       score.y = ARENA_HEIGHT - 20;
@@ -138,19 +141,18 @@ export class GameRenderer {
       this.effectSprites.set(id, sprites);
     });
 
-    // ── Round label ────────────────────────────────────────────
     this.roundLabel = new Text({
       text: '',
-      style: new TextStyle({ fontFamily: 'Courier New', fontSize: 13, fill: 0x555555 }),
+      style: new TextStyle({ fontFamily: 'Courier New', fontSize: 13, fill: 0x444466 }),
     });
     this.roundLabel.anchor.set(1, 1);
     this.roundLabel.x = ARENA_WIDTH - 10;
     this.roundLabel.y = ARENA_HEIGHT - 6;
     hudLayer.addChild(this.roundLabel);
 
-    // ── Phase overlay ──────────────────────────────────────────
+    // Phase overlay
     this.dimOverlay = new Graphics();
-    this.dimOverlay.rect(0, 0, ARENA_WIDTH, ARENA_HEIGHT).fill({ color: 0x000000, alpha: 0.55 });
+    this.dimOverlay.rect(0, 0, ARENA_WIDTH, ARENA_HEIGHT).fill({ color: 0x000000, alpha: 0.6 });
 
     this.centerText = new Text({
       text: '',
@@ -160,15 +162,50 @@ export class GameRenderer {
         fontWeight: 'bold',
         fill: 0xffffff,
         align: 'center',
-        dropShadow: { distance: 0, blur: 20, color: 0xffffff, alpha: 0.4 },
+        dropShadow: { distance: 0, blur: 24, color: 0xffffff, alpha: 0.4 },
       }),
     });
     this.centerText.anchor.set(0.5, 0.5);
     this.centerText.x = ARENA_WIDTH / 2;
     this.centerText.y = ARENA_HEIGHT / 2;
 
+    // "ROUND X" label shown during countdown
+    this.roundCountdownLabel = new Text({
+      text: '',
+      style: new TextStyle({
+        fontFamily: 'Courier New',
+        fontSize: 12,
+        fill: 0x888888,
+        align: 'center',
+        letterSpacing: 6,
+      }),
+    });
+    this.roundCountdownLabel.anchor.set(0.5, 0.5);
+    this.roundCountdownLabel.x = ARENA_WIDTH / 2;
+    this.roundCountdownLabel.y = ARENA_HEIGHT / 2 + 58;
+    this.roundCountdownLabel.visible = false;
+
+    // Theme name label fades out when playing starts
+    this.themeLabel = new Text({
+      text: '',
+      style: new TextStyle({
+        fontFamily: 'Courier New',
+        fontSize: 13,
+        fill: 0x4466ff,
+        align: 'center',
+        letterSpacing: 6,
+        dropShadow: { distance: 0, blur: 10, color: 0x000000, alpha: 0.9 },
+      }),
+    });
+    this.themeLabel.anchor.set(0.5, 0.5);
+    this.themeLabel.x = ARENA_WIDTH / 2;
+    this.themeLabel.y = ARENA_HEIGHT / 2 + 78;
+    this.themeLabel.visible = false;
+
     overlayLayer.addChild(this.dimOverlay);
     overlayLayer.addChild(this.centerText);
+    overlayLayer.addChild(this.roundCountdownLabel);
+    overlayLayer.addChild(this.themeLabel);
     this.setOverlayVisible(false);
   }
 
@@ -182,6 +219,16 @@ export class GameRenderer {
   }
 
   renderFrame(state: IGameState): void {
+    this.bg.update(state.round);
+
+    if (state.round !== this.prevRound && state.round > 0) {
+      this.prevRound = state.round;
+      this.themeLabelTimer = 200;
+      const theme = getTheme(state.round);
+      this.themeLabel.text = `— ${theme.name} —`;
+      this.themeLabel.style.fill = theme.glow;
+    }
+
     this.syncHeads(state);
     this.syncHUD(state);
     this.syncEffects(state);
@@ -193,14 +240,12 @@ export class GameRenderer {
     const showArrow = state.phase === 'countdown';
     const showNames = state.phase === 'countdown';
 
-    // Detect deaths → burst of particles
     for (const curve of state.curves) {
       const wasAlive = this.prevAlive.get(curve.id) ?? true;
       if (wasAlive && !curve.alive) this.spawnParticles(curve.x, curve.y, curve.id);
       this.prevAlive.set(curve.id, curve.alive);
     }
 
-    // Draw + age particles
     this.tickParticles();
 
     for (const curve of state.curves) {
@@ -213,45 +258,32 @@ export class GameRenderer {
 
       const alpha = curve.ghostTrail ? 0.35 : 1;
 
-      // Outer coloured halo (identifies which player is which)
       g.circle(curve.x, curve.y, curve.trailRadius + 5)
         .fill({ color: palette.color, alpha: 0.3 * alpha });
-
-      // White core dot
       g.circle(curve.x, curve.y, curve.trailRadius + 1.5)
         .fill({ color: 0xffffff, alpha });
 
-      // Shield ring
       if (curve.activeEffects.includes('shield')) {
         const pulse = 0.6 + Math.sin(Date.now() / 150) * 0.4;
         g.circle(curve.x, curve.y, curve.trailRadius + 9)
           .stroke({ color: 0x00ffcc, width: 2, alpha: pulse });
       }
 
-      // Direction arrow (countdown only) with arrowhead
       if (showArrow) {
         const len = 28;
         const ex = curve.x + Math.cos(curve.angle) * len;
         const ey = curve.y + Math.sin(curve.angle) * len;
-        const hw = 8;
-        const hs = 0.55;
+        const hw = 8, hs = 0.55;
         g.moveTo(curve.x, curve.y).lineTo(ex, ey)
           .stroke({ color: palette.color, width: 2, alpha: 0.85 });
         g.moveTo(ex, ey)
-          .lineTo(
-            ex + Math.cos(curve.angle + Math.PI + hs) * hw,
-            ey + Math.sin(curve.angle + Math.PI + hs) * hw,
-          )
+          .lineTo(ex + Math.cos(curve.angle + Math.PI + hs) * hw, ey + Math.sin(curve.angle + Math.PI + hs) * hw)
           .stroke({ color: palette.color, width: 2, alpha: 0.85 });
         g.moveTo(ex, ey)
-          .lineTo(
-            ex + Math.cos(curve.angle + Math.PI - hs) * hw,
-            ey + Math.sin(curve.angle + Math.PI - hs) * hw,
-          )
+          .lineTo(ex + Math.cos(curve.angle + Math.PI - hs) * hw, ey + Math.sin(curve.angle + Math.PI - hs) * hw)
           .stroke({ color: palette.color, width: 2, alpha: 0.85 });
       }
 
-      // Name tag above head
       const tag = this.nameTags.get(curve.id);
       if (tag) {
         tag.visible = showNames;
@@ -262,7 +294,6 @@ export class GameRenderer {
       }
     }
 
-    // Hide name tags for dead / non-countdown frames
     if (!showNames) {
       for (const tag of this.nameTags.values()) tag.visible = false;
     }
@@ -289,10 +320,8 @@ export class GameRenderer {
     this.particleGraphics.clear();
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
-      p.x += p.vx;
-      p.y += p.vy;
-      p.vx *= 0.93;
-      p.vy *= 0.93;
+      p.x += p.vx; p.y += p.vy;
+      p.vx *= 0.93; p.vy *= 0.93;
       p.alpha -= p.decay;
       if (p.alpha <= 0) { this.particles.splice(i, 1); continue; }
       this.particleGraphics.circle(p.x, p.y, p.radius).fill({ color: p.color, alpha: p.alpha });
@@ -311,16 +340,11 @@ export class GameRenderer {
     for (const [id, container] of this.effectContainers) {
       const curve = state.curves.find((c) => c.id === id);
       const effectKey = curve ? [...curve.activeEffects].sort().join(',') : '';
-
       if (effectKey === this.prevEffectKeys.get(id)) continue;
       this.prevEffectKeys.set(id, effectKey);
-
       const sprites = this.effectSprites.get(id)!;
-
       for (const s of sprites.values()) s.visible = false;
-
       if (!curve || curve.activeEffects.length === 0) continue;
-
       let xOffset = 0;
       for (const cfg of POWERUP_CONFIGS) {
         if (!curve.activeEffects.includes(cfg.type)) continue;
@@ -329,21 +353,35 @@ export class GameRenderer {
         t.x = xOffset;
         xOffset += t.width + 4;
       }
-
       container.visible = xOffset > 0;
     }
   }
 
   private syncOverlay(state: IGameState): void {
     const { phase } = state;
+    const theme = getTheme(state.round);
+
+    // Tick and fade the theme label
+    if (this.themeLabelTimer > 0) {
+      this.themeLabelTimer--;
+      const alpha = this.themeLabelTimer > 40 ? 1 : this.themeLabelTimer / 40;
+      this.themeLabel.alpha = alpha;
+      this.themeLabel.visible = true;
+    } else {
+      this.themeLabel.visible = false;
+    }
 
     if (phase === 'countdown') {
       this.setOverlayVisible(true);
       this.centerText.text = String(Math.max(1, state.countdown));
       this.centerText.style.fontSize = 96;
-      this.centerText.style.fill = 0xffffff;
+      this.centerText.style.fill = theme.glow;
+      this.roundCountdownLabel.text = `ROUND  ${state.round}`;
+      this.roundCountdownLabel.visible = true;
       return;
     }
+
+    this.roundCountdownLabel.visible = false;
 
     if (phase === 'round_over') {
       this.setOverlayVisible(true);
@@ -351,7 +389,7 @@ export class GameRenderer {
       const palette = PLAYER_PALETTE.find((p) => p.id === winner?.id);
       this.centerText.style.fontSize = 40;
       if (palette) {
-        this.centerText.text = `${palette.name} wins the round!`;
+        this.centerText.text = `${palette.name} wins!`;
         this.centerText.style.fill = palette.color;
       } else {
         this.centerText.text = 'Draw!';
