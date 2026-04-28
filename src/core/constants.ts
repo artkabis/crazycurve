@@ -1,59 +1,58 @@
 import type { PowerUpType } from './types.ts';
 
 // ── Arena ──────────────────────────────────────────────────────
-export const ARENA_WIDTH = 800;
+export const ARENA_WIDTH  = 800;
 export const ARENA_HEIGHT = 600;
 
-// ── Physics ────────────────────────────────────────────────────
-export const PLAYER_SPEED = 2.5;
-export const TURN_RATE = 0.042;
-export const TRAIL_RADIUS = 3.5;
+// ── Physics — expressed per-second, converted in Curve.reset() ─
+export const PLAYER_SPEED_PPS = 75;    // pixels / second
+export const TURN_RATE_RPS    = 1.26;  // radians / second
+export const TRAIL_RADIUS     = 3.5;   // pixels (geometry, tick-independent)
 
-// ── Gap mechanic ───────────────────────────────────────────────
-export const GAP_INTERVAL_MIN = 150;  // ticks ≈ 5 s at 30 Hz
-export const GAP_INTERVAL_MAX = 280;  // ticks ≈ 9 s
-export const GAP_DURATION_MIN = 18;   // ticks ≈ 0.6 s
-export const GAP_DURATION_MAX = 32;   // ticks ≈ 1.1 s
-export const STARTUP_GAP_FRAMES = 40; // ticks ≈ 1.3 s before first trail
+// ── Gap mechanic — seconds, converted to ticks in Curve.reset() ─
+export const GAP_INTERVAL_MIN_S = 5.0; // seconds between gap openings
+export const GAP_INTERVAL_MAX_S = 9.3;
+export const GAP_DURATION_MIN_S = 0.6; // seconds a gap stays open
+export const GAP_DURATION_MAX_S = 1.1;
+export const STARTUP_GAP_S      = 1.5; // immune time at round start
 
 // ── Game rules ─────────────────────────────────────────────────
-export const SCORE_TO_WIN = 10; // first player to reach this wins
+export const SCORE_TO_WIN        = 10;
 export const ROUND_OVER_DELAY_MS = 2500;
-export const COUNTDOWN_SECONDS = 3;
+export const COUNTDOWN_SECONDS   = 3;
 
 // ── Server ─────────────────────────────────────────────────────
 export const SERVER_TICK_RATE = 30;
-export const SERVER_TICK_MS = 1000 / SERVER_TICK_RATE;
-export const MIN_PLAYERS = 2;
-export const MAX_PLAYERS = 6;
+export const SERVER_TICK_MS   = 1000 / SERVER_TICK_RATE;
+export const MIN_PLAYERS      = 2;
+export const MAX_PLAYERS      = 6;
 
 // ── Power-ups ──────────────────────────────────────────────────
 export interface PowerUpConfig {
-  type: PowerUpType;
-  color: number;
-  label: string;
-  duration: number; // ticks at 30 Hz; 0 = instant
+  type:       PowerUpType;
+  color:      number;
+  label:      string;
+  duration:   number;    // seconds; 0 = instant
   targetSelf: boolean;
 }
 
 export const POWERUP_CONFIGS: PowerUpConfig[] = [
-  { type: 'speed_boost', color: 0xffdd00, label: 'FAST',   duration: 150, targetSelf: true  },
-  { type: 'slow',        color: 0x4488ff, label: 'SLOW',   duration: 150, targetSelf: false },
-  { type: 'reverse',     color: 0xff4488, label: 'REV',    duration: 120, targetSelf: false },
-  { type: 'freeze',      color: 0x88ddff, label: 'FREEZE', duration:  90, targetSelf: false },
-  { type: 'ghost',       color: 0xcccccc, label: 'GHOST',  duration: 120, targetSelf: true  },
-  { type: 'thin',        color: 0x44ff88, label: 'THIN',   duration: 180, targetSelf: true  },
-  { type: 'thick',       color: 0xff6600, label: 'THICK',  duration: 120, targetSelf: false },
-  { type: 'teleport',    color: 0xff00ff, label: 'WARP',   duration:   0, targetSelf: true  },
-  { type: 'shield',      color: 0x00ffcc, label: 'SHIELD', duration: 300, targetSelf: true  },
-  { type: 'eraser',      color: 0xff8800, label: 'ERASE',  duration:   0, targetSelf: true  },
+  { type: 'speed_boost', color: 0xffdd00, label: 'FAST',   duration:  5, targetSelf: true  },
+  { type: 'slow',        color: 0x4488ff, label: 'SLOW',   duration:  5, targetSelf: false },
+  { type: 'reverse',     color: 0xff4488, label: 'REV',    duration:  4, targetSelf: false },
+  { type: 'freeze',      color: 0x88ddff, label: 'FREEZE', duration:  3, targetSelf: false },
+  { type: 'ghost',       color: 0xcccccc, label: 'GHOST',  duration:  4, targetSelf: true  },
+  { type: 'thin',        color: 0x44ff88, label: 'THIN',   duration:  6, targetSelf: true  },
+  { type: 'thick',       color: 0xff6600, label: 'THICK',  duration:  4, targetSelf: false },
+  { type: 'teleport',    color: 0xff00ff, label: 'WARP',   duration:  0, targetSelf: true  },
+  { type: 'shield',      color: 0x00ffcc, label: 'SHIELD', duration: 10, targetSelf: true  },
+  { type: 'eraser',      color: 0xff8800, label: 'ERASE',  duration:  0, targetSelf: true  },
 ];
 
-export const ERASER_RADIUS = 44; // px — zone cleared in bitmap + trail texture
-
-export const POWERUP_SPAWN_INTERVAL = 180; // ticks between spawns (~6 s at 30 Hz)
-export const POWERUP_MAX_ACTIVE = 5;
-export const POWERUP_RADIUS = 12; // px — collection + visual radius
+export const ERASER_RADIUS            = 44;  // pixels
+export const POWERUP_SPAWN_INTERVAL_S = 6;   // seconds between spawns
+export const POWERUP_MAX_ACTIVE       = 5;
+export const POWERUP_RADIUS           = 12;  // pixels — collection + visual
 
 // ── Players ────────────────────────────────────────────────────
 export const PLAYER_PALETTE = [
@@ -77,10 +76,10 @@ export function getPalette(id: number): PlayerPalette {
 }
 
 export interface LocalPlayerSetup {
-  id: number;
-  name: string;
-  color: number;
+  id:       number;
+  name:     string;
+  color:    number;
   colorHex: string;
-  leftKey: string;
+  leftKey:  string;
   rightKey: string;
 }

@@ -1,12 +1,12 @@
 import {
-  PLAYER_SPEED,
-  TURN_RATE,
+  PLAYER_SPEED_PPS,
+  TURN_RATE_RPS,
   TRAIL_RADIUS,
-  GAP_INTERVAL_MIN,
-  GAP_INTERVAL_MAX,
-  GAP_DURATION_MIN,
-  GAP_DURATION_MAX,
-  STARTUP_GAP_FRAMES,
+  GAP_INTERVAL_MIN_S,
+  GAP_INTERVAL_MAX_S,
+  GAP_DURATION_MIN_S,
+  GAP_DURATION_MAX_S,
+  STARTUP_GAP_S,
 } from '../constants.ts';
 import type { InputState, Vec2, PowerUpType } from '../types.ts';
 import type { CollisionSystem } from '../systems/CollisionSystem.ts';
@@ -24,44 +24,54 @@ export class Curve {
   angle = 0;
   alive = true;
 
-  speed = PLAYER_SPEED;
-  turnRate = TURN_RATE;
+  speed       = 0;
+  turnRate    = 0;
   trailRadius = TRAIL_RADIUS;
 
   inverseControls = false;
-  frozen = false;
-  ghostTrail = false;
+  frozen          = false;
+  ghostTrail      = false;
 
-  private effects = new Map<PowerUpType, number>(); // type → expiresAtTick
+  private effects   = new Map<PowerUpType, number>(); // type → expiresAtTick
+  private tickRate  = 60;
+  private baseSpeed = 0;
 
-  private gapActive = true;
-  private gapTimer = 0;
-  private gapDuration = STARTUP_GAP_FRAMES;
-  private nextGapIn = 0;
+  private gapActive   = true;
+  private gapTimer    = 0;
+  private gapDuration = 0;
+  private nextGapIn   = 0;
 
   newPoints: Vec2[] = [];
 
   constructor(id: number, color: number) {
-    this.id = id;
+    this.id    = id;
     this.color = color;
   }
 
-  reset(x: number, y: number, angle: number): void {
-    this.x = x;
-    this.y = y;
+  reset(x: number, y: number, angle: number, tickRate = 60): void {
+    this.tickRate  = tickRate;
+    this.baseSpeed = PLAYER_SPEED_PPS / tickRate;
+
+    this.x     = x;
+    this.y     = y;
     this.angle = angle;
     this.alive = true;
+
     this.effects.clear();
     this.inverseControls = false;
-    this.frozen = false;
-    this.ghostTrail = false;
-    this.speed = PLAYER_SPEED;
-    this.turnRate = TURN_RATE;
-    this.trailRadius = TRAIL_RADIUS;
-    this.gapActive = true;
-    this.gapTimer = 0;
-    this.gapDuration = STARTUP_GAP_FRAMES;
-    this.nextGapIn = randInt(GAP_INTERVAL_MIN, GAP_INTERVAL_MAX);
+    this.frozen          = false;
+    this.ghostTrail      = false;
+    this.speed           = this.baseSpeed;
+    this.turnRate        = TURN_RATE_RPS / tickRate;
+    this.trailRadius     = TRAIL_RADIUS;
+
+    this.gapActive   = true;
+    this.gapTimer    = 0;
+    this.gapDuration = Math.round(STARTUP_GAP_S * tickRate);
+    this.nextGapIn   = randInt(
+      Math.round(GAP_INTERVAL_MIN_S * tickRate),
+      Math.round(GAP_INTERVAL_MAX_S * tickRate),
+    );
     this.newPoints = [];
   }
 
@@ -86,22 +96,22 @@ export class Curve {
   }
 
   teleport(x: number, y: number, newAngle: number): void {
-    this.x = x;
-    this.y = y;
+    this.x     = x;
+    this.y     = y;
     this.angle = newAngle;
     // Brief gap so the teleported curve doesn't immediately self-collide
-    this.gapActive = true;
-    this.gapTimer = 0;
-    this.gapDuration = 20;
+    this.gapActive   = true;
+    this.gapTimer    = 0;
+    this.gapDuration = Math.round(0.5 * this.tickRate);
   }
 
   private recalcEffects(): void {
     this.inverseControls = this.effects.has('reverse');
-    this.frozen = this.effects.has('freeze');
-    this.ghostTrail = this.effects.has('ghost');
-    this.speed = this.effects.has('speed_boost') ? PLAYER_SPEED * 1.7
-               : this.effects.has('slow')        ? PLAYER_SPEED * 0.5
-               : PLAYER_SPEED;
+    this.frozen          = this.effects.has('freeze');
+    this.ghostTrail      = this.effects.has('ghost');
+    this.speed = this.effects.has('speed_boost') ? this.baseSpeed * 1.7
+               : this.effects.has('slow')        ? this.baseSpeed * 0.5
+               : this.baseSpeed;
     this.trailRadius = this.effects.has('thin')  ? TRAIL_RADIUS * 0.5
                      : this.effects.has('thick') ? TRAIL_RADIUS * 2.5
                      : TRAIL_RADIUS;
@@ -122,10 +132,8 @@ export class Curve {
     const nx = this.x + Math.cos(this.angle) * this.speed;
     const ny = this.y + Math.sin(this.angle) * this.speed;
 
-    // Check collision at the leading edge of the head (center + trailRadius forward).
-    // Distance from last paint center = speed + trailRadius > trailRadius, so we
-    // never land inside our own freshly painted circle (fixes immediate self-collision
-    // caused by PLAYER_SPEED < TRAIL_RADIUS).
+    // Leading-edge check: head centre + trailRadius forward.
+    // Distance from last paint = speed + trailRadius > trailRadius at any tick rate.
     const leadX = nx + Math.cos(this.angle) * this.trailRadius;
     const leadY = ny + Math.sin(this.angle) * this.trailRadius;
 
@@ -135,7 +143,6 @@ export class Curve {
     if (hitWall) { this.alive = false; return; }
     if (hitTrail) {
       if (this.shielded) {
-        // Consume shield instead of dying
         this.effects.delete('shield');
         this.recalcEffects();
       } else {
@@ -162,14 +169,20 @@ export class Curve {
     if (this.gapActive) {
       if (this.gapTimer >= this.gapDuration) {
         this.gapActive = false;
-        this.gapTimer = 0;
-        this.nextGapIn = randInt(GAP_INTERVAL_MIN, GAP_INTERVAL_MAX);
+        this.gapTimer  = 0;
+        this.nextGapIn = randInt(
+          Math.round(GAP_INTERVAL_MIN_S * this.tickRate),
+          Math.round(GAP_INTERVAL_MAX_S * this.tickRate),
+        );
       }
     } else {
       if (this.gapTimer >= this.nextGapIn) {
-        this.gapActive = true;
-        this.gapTimer = 0;
-        this.gapDuration = randInt(GAP_DURATION_MIN, GAP_DURATION_MAX);
+        this.gapActive   = true;
+        this.gapTimer    = 0;
+        this.gapDuration = randInt(
+          Math.round(GAP_DURATION_MIN_S * this.tickRate),
+          Math.round(GAP_DURATION_MAX_S * this.tickRate),
+        );
       }
     }
   }

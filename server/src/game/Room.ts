@@ -2,6 +2,7 @@ import type { Server, Socket } from 'socket.io';
 import { GameEngine } from '../../../src/core/GameEngine.ts';
 import {
   SERVER_TICK_MS,
+  SERVER_TICK_RATE,
   SCORE_TO_WIN,
   getPalette,
   MIN_PLAYERS,
@@ -75,9 +76,9 @@ export class Room {
 
     const palette = getPalette(this.nextId);
     const info: PlayerInfo = {
-      id: this.nextId++,
-      name: name.slice(0, 16) || palette.name,
-      color: palette.color,
+      id:       this.nextId++,
+      name:     name.slice(0, 16) || palette.name,
+      color:    palette.color,
       colorHex: palette.colorHex,
     };
 
@@ -92,7 +93,6 @@ export class Room {
     if (!player) return;
 
     if (this.isRunning) {
-      // Keep slot alive for RECONNECT_WINDOW_MS — player may come back
       player.socket = null;
       player.disconnectedAt = Date.now();
       this.io.to(this.id).emit('player_left', player.info.id);
@@ -120,12 +120,12 @@ export class Room {
     if (this.players.size < MIN_PLAYERS || this.isRunning) return false;
 
     const playerIds = [...this.players.values()].map((p) => p.info.id);
-    this.engine = new GameEngine(playerIds);
+    this.engine = new GameEngine(playerIds, SCORE_TO_WIN, SERVER_TICK_RATE);
 
     this.engine.on('playerDied', (id) => this.pendingEvents.push({ type: 'player_died', playerId: id }));
-    this.engine.on('roundOver', (id) => this.pendingEvents.push({ type: 'round_over', winnerId: id ?? null }));
-    this.engine.on('gameOver', (id) => this.pendingEvents.push({ type: 'game_over', winnerId: id }));
-    this.engine.on('eraseZone', (x, y, r) => this.pendingEvents.push({ type: 'erase_zone', x, y, radius: r }));
+    this.engine.on('roundOver',  (id) => this.pendingEvents.push({ type: 'round_over',  winnerId: id ?? null }));
+    this.engine.on('gameOver',   (id) => this.pendingEvents.push({ type: 'game_over',   winnerId: id }));
+    this.engine.on('eraseZone',  (x, y, r) => this.pendingEvents.push({ type: 'erase_zone', x, y, radius: r }));
 
     this.engine.startGame();
     this.io.to(this.id).emit('game_start');
@@ -138,7 +138,6 @@ export class Room {
       clearInterval(this.tickInterval);
       this.tickInterval = null;
     }
-    // Cancel pending reconnect timers
     for (const player of this.players.values()) {
       if (player.cleanupTimer) clearTimeout(player.cleanupTimer);
     }
@@ -169,22 +168,22 @@ export class Room {
     }
 
     const payload: TickPayload = {
-      tick: this.tick,
-      phase: engine.phase,
-      round: engine.round,
+      tick:      this.tick,
+      phase:     engine.phase,
+      round:     engine.round,
       countdown: engine.countdown,
-      players: engine.curves.map((c) => ({
-        id: c.id,
-        x: c.x,
-        y: c.y,
-        angle: c.angle,
-        alive: c.alive,
-        inGap: c.inGap,
-        trailRadius: c.trailRadius,
-        ghostTrail: c.ghostTrail,
+      players:   engine.curves.map((c) => ({
+        id:           c.id,
+        x:            c.x,
+        y:            c.y,
+        angle:        c.angle,
+        alive:        c.alive,
+        inGap:        c.inGap,
+        trailRadius:  c.trailRadius,
+        ghostTrail:   c.ghostTrail,
         activeEffects: [...c.activeEffects],
       })),
-      events: this.pendingEvents,
+      events:  this.pendingEvents,
       scores,
       pickups: engine.pickups as PickupSnapshot[],
     };
