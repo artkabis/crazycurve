@@ -20,13 +20,22 @@ export type PowerUpType =
   | 'thick'
   | 'teleport'
   | 'shield'
-  | 'eraser';
+  | 'eraser'
+  | 'missile';
 
 export interface PickupRenderData {
   id: number;
   x: number;
   y: number;
   type: PowerUpType;
+}
+
+export interface MissileRenderData {
+  id:      number;
+  x:       number;
+  y:       number;
+  angle:   number;
+  ownerId: number;
 }
 
 export interface CurveRenderData {
@@ -48,6 +57,7 @@ export interface IGameState {
   readonly countdown: number;
   readonly curves: readonly CurveRenderData[];
   readonly pickups: readonly PickupRenderData[];
+  readonly missiles: readonly MissileRenderData[];
   getScore(playerId: number): number;
 }
 
@@ -58,4 +68,5 @@ export type GameEvents = {
   gameOver: [winnerId: number];
   pickup: [type: PowerUpType, collectorId: number];
   eraseZone: [x: number, y: number, radius: number];
+  missileHit: [ownerId: number, targetId: number | null, x: number, y: number];
 };

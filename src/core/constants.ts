@@ -10,11 +10,11 @@ export const TURN_RATE_RPS    = 1.26;  // radians / second
 export const TRAIL_RADIUS     = 3.5;   // pixels (geometry, tick-independent)
 
 // ── Gap mechanic — seconds, converted to ticks in Curve.reset() ─
-export const GAP_INTERVAL_MIN_S = 5.0; // seconds between gap openings
+export const GAP_INTERVAL_MIN_S = 5.0;
 export const GAP_INTERVAL_MAX_S = 9.3;
-export const GAP_DURATION_MIN_S = 0.6; // seconds a gap stays open
+export const GAP_DURATION_MIN_S = 0.6;
 export const GAP_DURATION_MAX_S = 1.1;
-export const STARTUP_GAP_S      = 1.5; // immune time at round start
+export const STARTUP_GAP_S      = 1.5;
 
 // ── Game rules ─────────────────────────────────────────────────
 export const SCORE_TO_WIN        = 10;
@@ -37,22 +37,23 @@ export interface PowerUpConfig {
 }
 
 export const POWERUP_CONFIGS: PowerUpConfig[] = [
-  { type: 'speed_boost', color: 0xffdd00, label: 'FAST',   duration:  5, targetSelf: true  },
-  { type: 'slow',        color: 0x4488ff, label: 'SLOW',   duration:  5, targetSelf: false },
-  { type: 'reverse',     color: 0xff4488, label: 'REV',    duration:  4, targetSelf: false },
-  { type: 'freeze',      color: 0x88ddff, label: 'FREEZE', duration:  3, targetSelf: false },
-  { type: 'ghost',       color: 0xcccccc, label: 'GHOST',  duration:  4, targetSelf: true  },
-  { type: 'thin',        color: 0x44ff88, label: 'THIN',   duration:  6, targetSelf: true  },
-  { type: 'thick',       color: 0xff6600, label: 'THICK',  duration:  4, targetSelf: false },
-  { type: 'teleport',    color: 0xff00ff, label: 'WARP',   duration:  0, targetSelf: true  },
-  { type: 'shield',      color: 0x00ffcc, label: 'SHIELD', duration: 10, targetSelf: true  },
-  { type: 'eraser',      color: 0xff8800, label: 'ERASE',  duration:  0, targetSelf: true  },
+  { type: 'speed_boost', color: 0xffdd00, label: 'FAST',    duration:  5, targetSelf: true  },
+  { type: 'slow',        color: 0x4488ff, label: 'SLOW',    duration:  5, targetSelf: false },
+  { type: 'reverse',     color: 0xff4488, label: 'REV',     duration:  4, targetSelf: false },
+  { type: 'freeze',      color: 0x88ddff, label: 'FREEZE',  duration:  3, targetSelf: false },
+  { type: 'ghost',       color: 0xcccccc, label: 'GHOST',   duration:  4, targetSelf: true  },
+  { type: 'thin',        color: 0x44ff88, label: 'THIN',    duration:  6, targetSelf: true  },
+  { type: 'thick',       color: 0xff6600, label: 'THICK',   duration:  4, targetSelf: false },
+  { type: 'teleport',    color: 0xff00ff, label: 'WARP',    duration:  0, targetSelf: true  },
+  { type: 'shield',      color: 0x00ffcc, label: 'SHIELD',  duration: 10, targetSelf: true  },
+  { type: 'eraser',      color: 0xff8800, label: 'ERASE',   duration:  0, targetSelf: true  },
+  { type: 'missile',     color: 0xff2222, label: 'FIRE',    duration:  0, targetSelf: true  },
 ];
 
-export const ERASER_RADIUS            = 44;  // pixels
-export const POWERUP_SPAWN_INTERVAL_S = 6;   // seconds between spawns
+export const ERASER_RADIUS            = 44;
+export const POWERUP_SPAWN_INTERVAL_S = 6;
 export const POWERUP_MAX_ACTIVE       = 5;
-export const POWERUP_RADIUS           = 12;  // pixels — collection + visual
+export const POWERUP_RADIUS           = 12;
 
 // ── Players ────────────────────────────────────────────────────
 export const PLAYER_PALETTE = [
@@ -75,11 +76,15 @@ export function getPalette(id: number): PlayerPalette {
   return p;
 }
 
+export type BotDifficulty = 'easy' | 'medium' | 'hard';
+
 export interface LocalPlayerSetup {
-  id:       number;
-  name:     string;
-  color:    number;
-  colorHex: string;
-  leftKey:  string;
-  rightKey: string;
+  id:             number;
+  name:           string;
+  color:          number;
+  colorHex:       string;
+  leftKey:        string;
+  rightKey:       string;
+  isBot?:         boolean;
+  botDifficulty?: BotDifficulty;
 }
