@@ -10,23 +10,26 @@ import {
 import { CollisionSystem } from './systems/CollisionSystem.ts';
 import { ScoreSystem } from './systems/ScoreSystem.ts';
 import { PowerUpSystem } from './systems/PowerUpSystem.ts';
+import { MissileSystem } from './systems/MissileSystem.ts';
 import { Curve } from './entities/Curve.ts';
 import { TypedEventEmitter } from './EventEmitter.ts';
-import type { GamePhase, GameEvents, InputState, IGameState, CurveRenderData, PickupRenderData } from './types.ts';
+import type {
+  GamePhase, GameEvents, InputState, IGameState,
+  CurveRenderData, PickupRenderData, MissileRenderData,
+} from './types.ts';
 
 function randomSpawn(index: number, total: number): { x: number; y: number; angle: number } {
   const margin = 100;
   const sliceW = (ARENA_WIDTH - margin * 2) / total;
   const x      = margin + sliceW * index + Math.random() * sliceW;
   const y      = margin + Math.random() * (ARENA_HEIGHT - margin * 2);
-  // Orient toward arena centre ±60° so players don't start facing a wall
   const toCenter = Math.atan2(ARENA_HEIGHT / 2 - y, ARENA_WIDTH / 2 - x);
   const angle    = toCenter + (Math.random() - 0.5) * (Math.PI * 2 / 3);
   return { x, y, angle };
 }
 
 export class GameEngine extends TypedEventEmitter<GameEvents> implements IGameState {
-  readonly collision = new CollisionSystem();
+  readonly collision: CollisionSystem;
   readonly scores: ScoreSystem;
   readonly curves: Curve[];
 
@@ -34,10 +37,8 @@ export class GameEngine extends TypedEventEmitter<GameEvents> implements IGameSt
   round            = 0;
   countdown        = COUNTDOWN_SECONDS;
 
-  private readonly powerUps = new PowerUpSystem(
-    (type, id) => this.emit('pickup', type, id),
-    (x, y, r)  => this.emit('eraseZone', x, y, r),
-  );
+  private readonly missileSystem: MissileSystem;
+  private readonly powerUps: PowerUpSystem;
   private engineTick       = 0;
   private countdownStart   = 0;
   private roundOverAt      = 0;
@@ -49,6 +50,13 @@ export class GameEngine extends TypedEventEmitter<GameEvents> implements IGameSt
     readonly tickRate: number           = 60,
   ) {
     super();
+    this.collision     = new CollisionSystem();
+    this.missileSystem = new MissileSystem();
+    this.powerUps      = new PowerUpSystem(
+      (type, id) => this.emit('pickup', type, id),
+      (x, y, r)  => this.emit('eraseZone', x, y, r),
+      (curve)    => this.missileSystem.fire(curve, this.tickRate),
+    );
     this.scores = new ScoreSystem(playerIds);
     this.curves = playerIds.map((id) => {
       const cfg = getPalette(id);
@@ -58,6 +66,10 @@ export class GameEngine extends TypedEventEmitter<GameEvents> implements IGameSt
 
   get pickups(): readonly PickupRenderData[] {
     return this.powerUps.getPickupsSnapshot();
+  }
+
+  get missiles(): readonly MissileRenderData[] {
+    return this.missileSystem.getSnapshot();
   }
 
   getScore(playerId: number): number {
@@ -83,6 +95,7 @@ export class GameEngine extends TypedEventEmitter<GameEvents> implements IGameSt
     this.round++;
     this.collision.reset();
     this.powerUps.reset();
+    this.missileSystem.reset();
     this.roundOverHandled = false;
 
     this.curves.forEach((curve, i) => {
@@ -109,6 +122,15 @@ export class GameEngine extends TypedEventEmitter<GameEvents> implements IGameSt
   private tickPlaying(inputs: Map<number, InputState>, now: number): void {
     this.engineTick++;
     this.powerUps.update(this.curves, this.collision, this.engineTick, this.tickRate);
+    this.missileSystem.update(this.curves, this.collision, (ownerId, targetId, x, y) => {
+      this.emit('missileHit', ownerId, targetId, x, y);
+      if (targetId !== null) {
+        this.emit('playerDied', targetId);
+        for (const c of this.curves) {
+          if (c.alive) this.scores.addPoint(c.id);
+        }
+      }
+    });
 
     const newlyDead: number[] = [];
     for (const curve of this.curves) {
@@ -118,7 +140,6 @@ export class GameEngine extends TypedEventEmitter<GameEvents> implements IGameSt
       if (wasAlive && !curve.alive) newlyDead.push(curve.id);
     }
 
-    // Original Curve Fever rule: +1 to every still-alive player for each death
     for (const deadId of newlyDead) {
       this.emit('playerDied', deadId);
       for (const c of this.curves) {

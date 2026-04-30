@@ -17,8 +17,9 @@ export class PowerUpSystem {
   private spawnTimer = 0;
 
   constructor(
-    private readonly onPickup?: (type: PowerUpType, collectorId: number) => void,
-    private readonly onErase?: (x: number, y: number, radius: number) => void,
+    private readonly onPickup?:       (type: PowerUpType, collectorId: number) => void,
+    private readonly onErase?:        (x: number, y: number, radius: number) => void,
+    private readonly onMissileFired?: (curve: Curve) => void,
   ) {}
 
   reset(): void {
@@ -80,6 +81,11 @@ export class PowerUpSystem {
     collision: CollisionSystem,
   ): void {
     const cfg = POWERUP_CONFIGS.find((c) => c.type === type)!;
+
+    if (type === 'missile') {
+      this.onMissileFired?.(collector);
+      return;
+    }
 
     if (type === 'teleport') {
       const margin = 80;
