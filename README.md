@@ -52,29 +52,18 @@ Toucher une traîne ou un mur = mort. Dernier survivant = point. Premier à **10
 
 ### Vue d'ensemble
 
-```mermaid
-graph TD
-    subgraph CLIENT["Navigateur"]
-        UI["Menus · HUD · Lobby"]
-        PIXI["PixiJS 8 WebGL<br/>TrailLayer · GameRenderer"]
-        ENG["GameEngine local"]
-        BOT["BotController x N<br/>IA ray-cast"]
-        NET["NetworkManager<br/>Socket.io-client"]
-        AUD["AudioManager<br/>Web Audio API"]
-    end
+| 🖥️ Navigateur (Client) | ⚙️ Serveur Node.js |
+|:---|:---|
+| **Menus · HUD · Lobby** — DOM | **Express** — sert `dist/` en production |
+| **PixiJS 8 WebGL** — TrailLayer · GameRenderer · PowerUpLayer | **Socket.io Server** — WebSocket + fallback polling |
+| **GameEngine** local — moteur déterministe | **RoomManager** — registre des parties |
+| **BotController × N** — IA ray-cast (mode local uniquement) | **Room × N @ 30 Hz** — boucle de jeu autoritaire |
+| **NetworkManager** — Socket.io-client | **GameEngine** — même code, côté serveur |
+| **AudioManager** — Web Audio API | **MissileSystem · CollisionSystem · PowerUpSystem** |
 
-    subgraph SERVER["Serveur Node.js"]
-        EXP["Express<br/>dist/ statique"]
-        SIO["Socket.io Server"]
-        RM["RoomManager"]
-        ROOM["Room x N - 30 Hz<br/>GameEngine · MissileSystem"]
-    end
-
-    UI --> PIXI --> ENG --> AUD
-    BOT --> ENG
-    NET -->|WS / polling| SIO
-    SIO --> RM --> ROOM
-    EXP -->|fichiers statiques| CLIENT
+```
+Client ←——— WebSocket / HTTP polling ———→ Serveur
+       ←——— dist/ (fichiers statiques) ←——— Express
 ```
 
 ### Boucle de jeu — mode online
