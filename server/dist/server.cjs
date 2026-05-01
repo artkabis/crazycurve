@@ -31,14 +31,14 @@ var import_socket = require("socket.io");
 // src/core/constants.ts
 var ARENA_WIDTH = 800;
 var ARENA_HEIGHT = 600;
-var PLAYER_SPEED = 2.5;
-var TURN_RATE = 0.042;
+var PLAYER_SPEED_PPS = 75;
+var TURN_RATE_RPS = 1.26;
 var TRAIL_RADIUS = 3.5;
-var GAP_INTERVAL_MIN = 150;
-var GAP_INTERVAL_MAX = 280;
-var GAP_DURATION_MIN = 18;
-var GAP_DURATION_MAX = 32;
-var STARTUP_GAP_FRAMES = 40;
+var GAP_INTERVAL_MIN_S = 5;
+var GAP_INTERVAL_MAX_S = 9.3;
+var GAP_DURATION_MIN_S = 0.6;
+var GAP_DURATION_MAX_S = 1.1;
+var STARTUP_GAP_S = 1.5;
 var SCORE_TO_WIN = 10;
 var ROUND_OVER_DELAY_MS = 2500;
 var COUNTDOWN_SECONDS = 3;
@@ -47,19 +47,20 @@ var SERVER_TICK_MS = 1e3 / SERVER_TICK_RATE;
 var MIN_PLAYERS = 2;
 var MAX_PLAYERS = 6;
 var POWERUP_CONFIGS = [
-  { type: "speed_boost", color: 16768256, label: "FAST", duration: 150, targetSelf: true },
-  { type: "slow", color: 4491519, label: "SLOW", duration: 150, targetSelf: false },
-  { type: "reverse", color: 16729224, label: "REV", duration: 120, targetSelf: false },
-  { type: "freeze", color: 8969727, label: "FREEZE", duration: 90, targetSelf: false },
-  { type: "ghost", color: 13421772, label: "GHOST", duration: 120, targetSelf: true },
-  { type: "thin", color: 4521864, label: "THIN", duration: 180, targetSelf: true },
-  { type: "thick", color: 16737792, label: "THICK", duration: 120, targetSelf: false },
+  { type: "speed_boost", color: 16768256, label: "FAST", duration: 5, targetSelf: true },
+  { type: "slow", color: 4491519, label: "SLOW", duration: 5, targetSelf: false },
+  { type: "reverse", color: 16729224, label: "REV", duration: 4, targetSelf: false },
+  { type: "freeze", color: 8969727, label: "FREEZE", duration: 3, targetSelf: false },
+  { type: "ghost", color: 13421772, label: "GHOST", duration: 4, targetSelf: true },
+  { type: "thin", color: 4521864, label: "THIN", duration: 6, targetSelf: true },
+  { type: "thick", color: 16737792, label: "THICK", duration: 4, targetSelf: false },
   { type: "teleport", color: 16711935, label: "WARP", duration: 0, targetSelf: true },
-  { type: "shield", color: 65484, label: "SHIELD", duration: 300, targetSelf: true },
-  { type: "eraser", color: 16746496, label: "ERASE", duration: 0, targetSelf: true }
+  { type: "shield", color: 65484, label: "SHIELD", duration: 10, targetSelf: true },
+  { type: "eraser", color: 16746496, label: "ERASE", duration: 0, targetSelf: true },
+  { type: "missile", color: 16720418, label: "FIRE", duration: 0, targetSelf: true }
 ];
 var ERASER_RADIUS = 44;
-var POWERUP_SPAWN_INTERVAL = 180;
+var POWERUP_SPAWN_INTERVAL_S = 6;
 var POWERUP_MAX_ACTIVE = 5;
 var POWERUP_RADIUS = 12;
 var PLAYER_PALETTE = [
@@ -176,9 +177,10 @@ var Pickup = class {
 
 // src/core/systems/PowerUpSystem.ts
 var PowerUpSystem = class {
-  constructor(onPickup, onErase) {
+  constructor(onPickup, onErase, onMissileFired) {
     this.onPickup = onPickup;
     this.onErase = onErase;
+    this.onMissileFired = onMissileFired;
   }
   pickups = [];
   spawnTimer = 0;
@@ -186,10 +188,11 @@ var PowerUpSystem = class {
     this.pickups = [];
     this.spawnTimer = 0;
   }
-  update(curves, collision, currentTick) {
+  update(curves, collision, currentTick, tickRate) {
     for (const c of curves) c.tickEffects(currentTick);
     this.spawnTimer++;
-    if (this.spawnTimer >= POWERUP_SPAWN_INTERVAL && this.pickups.length < POWERUP_MAX_ACTIVE) {
+    const spawnInterval = Math.round(POWERUP_SPAWN_INTERVAL_S * tickRate);
+    if (this.spawnTimer >= spawnInterval && this.pickups.length < POWERUP_MAX_ACTIVE) {
       this.spawnTimer = 0;
       this.trySpawn(collision);
     }
@@ -201,7 +204,7 @@ var PowerUpSystem = class {
         const dy = curve.y - pickup.y;
         if (dx * dx + dy * dy <= POWERUP_RADIUS * POWERUP_RADIUS) {
           pickup.collected = true;
-          this.applyEffect(pickup.type, curve, curves, currentTick, collision);
+          this.applyEffect(pickup.type, curve, curves, currentTick, tickRate, collision);
           this.onPickup?.(pickup.type, curve.id);
           break;
         }
@@ -224,8 +227,12 @@ var PowerUpSystem = class {
       }
     }
   }
-  applyEffect(type, collector, allCurves, currentTick, collision) {
+  applyEffect(type, collector, allCurves, currentTick, tickRate, collision) {
     const cfg = POWERUP_CONFIGS.find((c) => c.type === type);
+    if (type === "missile") {
+      this.onMissileFired?.(collector);
+      return;
+    }
     if (type === "teleport") {
       const margin = 80;
       const x = margin + Math.random() * (ARENA_WIDTH - margin * 2);
@@ -239,8 +246,79 @@ var PowerUpSystem = class {
       return;
     }
     const targets = cfg.targetSelf ? [collector] : allCurves.filter((c) => c.id !== collector.id && c.alive);
-    const expiresAt = currentTick + cfg.duration;
+    const expiresAt = currentTick + Math.round(cfg.duration * tickRate);
     for (const t of targets) t.applyEffect(type, expiresAt);
+  }
+};
+
+// src/core/entities/Missile.ts
+var nextId = 1;
+var Missile = class {
+  constructor(x, y, angle, ownerId, speed) {
+    this.speed = speed;
+    this.id = nextId++;
+    this.ownerId = ownerId;
+    this.x = x;
+    this.y = y;
+    this.angle = angle;
+  }
+  id;
+  ownerId;
+  x;
+  y;
+  angle;
+  alive = true;
+  update() {
+    if (!this.alive) return;
+    this.x += Math.cos(this.angle) * this.speed;
+    this.y += Math.sin(this.angle) * this.speed;
+    if (this.x < 2 || this.x >= ARENA_WIDTH - 2 || this.y < 2 || this.y >= ARENA_HEIGHT - 2) this.alive = false;
+  }
+};
+
+// src/core/systems/MissileSystem.ts
+var MISSILE_SPEED_MULT = 3.5;
+var ERASE_RADIUS = 10;
+var MissileSystem = class {
+  missiles = [];
+  reset() {
+    this.missiles = [];
+  }
+  fire(curve, tickRate) {
+    const speed = PLAYER_SPEED_PPS / tickRate * MISSILE_SPEED_MULT;
+    this.missiles.push(new Missile(curve.x, curve.y, curve.angle, curve.id, speed));
+  }
+  update(curves, collision, onHit) {
+    for (const m of this.missiles) {
+      if (!m.alive) continue;
+      m.update();
+      for (const c of curves) {
+        if (!c.alive || c.id === m.ownerId) continue;
+        const dx = c.x - m.x, dy = c.y - m.y;
+        if (dx * dx + dy * dy < (c.trailRadius + 5) ** 2) {
+          m.alive = false;
+          c.alive = false;
+          onHit(m.ownerId, c.id, m.x, m.y);
+          break;
+        }
+      }
+      if (!m.alive) continue;
+      if (collision.checkTrail(m.x, m.y)) {
+        collision.erase(m.x, m.y, ERASE_RADIUS);
+        m.alive = false;
+        onHit(m.ownerId, null, m.x, m.y);
+      }
+    }
+    this.missiles = this.missiles.filter((m) => m.alive);
+  }
+  getSnapshot() {
+    return this.missiles.map((m) => ({
+      id: m.id,
+      x: m.x,
+      y: m.y,
+      angle: m.angle,
+      ownerId: m.ownerId
+    }));
   }
 };
 
@@ -255,24 +333,28 @@ var Curve = class {
   y = 0;
   angle = 0;
   alive = true;
-  speed = PLAYER_SPEED;
-  turnRate = TURN_RATE;
+  speed = 0;
+  turnRate = 0;
   trailRadius = TRAIL_RADIUS;
   inverseControls = false;
   frozen = false;
   ghostTrail = false;
   effects = /* @__PURE__ */ new Map();
   // type → expiresAtTick
+  tickRate = 60;
+  baseSpeed = 0;
   gapActive = true;
   gapTimer = 0;
-  gapDuration = STARTUP_GAP_FRAMES;
+  gapDuration = 0;
   nextGapIn = 0;
   newPoints = [];
   constructor(id, color) {
     this.id = id;
     this.color = color;
   }
-  reset(x, y, angle) {
+  reset(x, y, angle, tickRate = 60) {
+    this.tickRate = tickRate;
+    this.baseSpeed = PLAYER_SPEED_PPS / tickRate;
     this.x = x;
     this.y = y;
     this.angle = angle;
@@ -281,13 +363,16 @@ var Curve = class {
     this.inverseControls = false;
     this.frozen = false;
     this.ghostTrail = false;
-    this.speed = PLAYER_SPEED;
-    this.turnRate = TURN_RATE;
+    this.speed = this.baseSpeed;
+    this.turnRate = TURN_RATE_RPS / tickRate;
     this.trailRadius = TRAIL_RADIUS;
     this.gapActive = true;
     this.gapTimer = 0;
-    this.gapDuration = STARTUP_GAP_FRAMES;
-    this.nextGapIn = randInt(GAP_INTERVAL_MIN, GAP_INTERVAL_MAX);
+    this.gapDuration = Math.round(STARTUP_GAP_S * tickRate);
+    this.nextGapIn = randInt(
+      Math.round(GAP_INTERVAL_MIN_S * tickRate),
+      Math.round(GAP_INTERVAL_MAX_S * tickRate)
+    );
     this.newPoints = [];
   }
   get inGap() {
@@ -319,13 +404,13 @@ var Curve = class {
     this.angle = newAngle;
     this.gapActive = true;
     this.gapTimer = 0;
-    this.gapDuration = 20;
+    this.gapDuration = Math.round(0.5 * this.tickRate);
   }
   recalcEffects() {
     this.inverseControls = this.effects.has("reverse");
     this.frozen = this.effects.has("freeze");
     this.ghostTrail = this.effects.has("ghost");
-    this.speed = this.effects.has("speed_boost") ? PLAYER_SPEED * 1.7 : this.effects.has("slow") ? PLAYER_SPEED * 0.5 : PLAYER_SPEED;
+    this.speed = this.effects.has("speed_boost") ? this.baseSpeed * 1.7 : this.effects.has("slow") ? this.baseSpeed * 0.5 : this.baseSpeed;
     this.trailRadius = this.effects.has("thin") ? TRAIL_RADIUS * 0.5 : this.effects.has("thick") ? TRAIL_RADIUS * 2.5 : TRAIL_RADIUS;
   }
   update(input, collision) {
@@ -338,8 +423,10 @@ var Curve = class {
     if (right) this.angle += this.turnRate;
     const nx = this.x + Math.cos(this.angle) * this.speed;
     const ny = this.y + Math.sin(this.angle) * this.speed;
+    const leadX = nx + Math.cos(this.angle) * this.trailRadius;
+    const leadY = ny + Math.sin(this.angle) * this.trailRadius;
     const hitWall = collision.checkWall(nx, ny, this.trailRadius);
-    const hitTrail = !this.gapActive && !this.ghostTrail && collision.checkTrail(nx, ny);
+    const hitTrail = !this.gapActive && !this.ghostTrail && collision.checkTrail(leadX, leadY);
     if (hitWall) {
       this.alive = false;
       return;
@@ -369,13 +456,19 @@ var Curve = class {
       if (this.gapTimer >= this.gapDuration) {
         this.gapActive = false;
         this.gapTimer = 0;
-        this.nextGapIn = randInt(GAP_INTERVAL_MIN, GAP_INTERVAL_MAX);
+        this.nextGapIn = randInt(
+          Math.round(GAP_INTERVAL_MIN_S * this.tickRate),
+          Math.round(GAP_INTERVAL_MAX_S * this.tickRate)
+        );
       }
     } else {
       if (this.gapTimer >= this.nextGapIn) {
         this.gapActive = true;
         this.gapTimer = 0;
-        this.gapDuration = randInt(GAP_DURATION_MIN, GAP_DURATION_MAX);
+        this.gapDuration = randInt(
+          Math.round(GAP_DURATION_MIN_S * this.tickRate),
+          Math.round(GAP_DURATION_MAX_S * this.tickRate)
+        );
       }
     }
   }
@@ -407,38 +500,47 @@ var TypedEventEmitter = class {
 function randomSpawn(index, total) {
   const margin = 100;
   const sliceW = (ARENA_WIDTH - margin * 2) / total;
-  return {
-    x: margin + sliceW * index + Math.random() * sliceW,
-    y: margin + Math.random() * (ARENA_HEIGHT - margin * 2),
-    angle: Math.random() * Math.PI * 2
-  };
+  const x = margin + sliceW * index + Math.random() * sliceW;
+  const y = margin + Math.random() * (ARENA_HEIGHT - margin * 2);
+  const toCenter = Math.atan2(ARENA_HEIGHT / 2 - y, ARENA_WIDTH / 2 - x);
+  const angle = toCenter + (Math.random() - 0.5) * (Math.PI * 2 / 3);
+  return { x, y, angle };
 }
 var GameEngine = class extends TypedEventEmitter {
-  constructor(playerIds = PLAYER_CONFIGS.map((p) => p.id), scoreToWin = SCORE_TO_WIN) {
+  constructor(playerIds = PLAYER_CONFIGS.map((p) => p.id), scoreToWin = SCORE_TO_WIN, tickRate = 60) {
     super();
     this.scoreToWin = scoreToWin;
+    this.tickRate = tickRate;
+    this.collision = new CollisionSystem();
+    this.missileSystem = new MissileSystem();
+    this.powerUps = new PowerUpSystem(
+      (type, id) => this.emit("pickup", type, id),
+      (x, y, r) => this.emit("eraseZone", x, y, r),
+      (curve) => this.missileSystem.fire(curve, this.tickRate)
+    );
     this.scores = new ScoreSystem(playerIds);
     this.curves = playerIds.map((id) => {
       const cfg = getPalette(id);
       return new Curve(cfg.id, cfg.color);
     });
   }
-  collision = new CollisionSystem();
+  collision;
   scores;
   curves;
   phase = "menu";
   round = 0;
   countdown = COUNTDOWN_SECONDS;
-  powerUps = new PowerUpSystem(
-    (type, id) => this.emit("pickup", type, id),
-    (x, y, r) => this.emit("eraseZone", x, y, r)
-  );
+  missileSystem;
+  powerUps;
   engineTick = 0;
   countdownStart = 0;
   roundOverAt = 0;
   roundOverHandled = false;
   get pickups() {
     return this.powerUps.getPickupsSnapshot();
+  }
+  get missiles() {
+    return this.missileSystem.getSnapshot();
   }
   getScore(playerId) {
     return this.scores.getScore(playerId);
@@ -466,10 +568,11 @@ var GameEngine = class extends TypedEventEmitter {
     this.round++;
     this.collision.reset();
     this.powerUps.reset();
+    this.missileSystem.reset();
     this.roundOverHandled = false;
     this.curves.forEach((curve, i) => {
       const pos = randomSpawn(i, this.curves.length);
-      curve.reset(pos.x, pos.y, pos.angle);
+      curve.reset(pos.x, pos.y, pos.angle, this.tickRate);
     });
     this.countdown = COUNTDOWN_SECONDS;
     this.countdownStart = performance.now();
@@ -487,7 +590,16 @@ var GameEngine = class extends TypedEventEmitter {
   }
   tickPlaying(inputs, now) {
     this.engineTick++;
-    this.powerUps.update(this.curves, this.collision, this.engineTick);
+    this.powerUps.update(this.curves, this.collision, this.engineTick, this.tickRate);
+    this.missileSystem.update(this.curves, this.collision, (ownerId, targetId, x, y) => {
+      this.emit("missileHit", ownerId, targetId, x, y);
+      if (targetId !== null) {
+        this.emit("playerDied", targetId);
+        for (const c of this.curves) {
+          if (c.alive) this.scores.addPoint(c.id);
+        }
+      }
+    });
     const newlyDead = [];
     for (const curve of this.curves) {
       const wasAlive = curve.alive;
@@ -609,11 +721,12 @@ var Room = class {
   tryStart() {
     if (this.players.size < MIN_PLAYERS || this.isRunning) return false;
     const playerIds = [...this.players.values()].map((p) => p.info.id);
-    this.engine = new GameEngine(playerIds);
+    this.engine = new GameEngine(playerIds, SCORE_TO_WIN, SERVER_TICK_RATE);
     this.engine.on("playerDied", (id) => this.pendingEvents.push({ type: "player_died", playerId: id }));
     this.engine.on("roundOver", (id) => this.pendingEvents.push({ type: "round_over", winnerId: id ?? null }));
     this.engine.on("gameOver", (id) => this.pendingEvents.push({ type: "game_over", winnerId: id }));
     this.engine.on("eraseZone", (x, y, r) => this.pendingEvents.push({ type: "erase_zone", x, y, radius: r }));
+    this.engine.on("missileHit", (ownerId, targetId, x, y) => this.pendingEvents.push({ type: "missile_hit", ownerId, targetId, x, y }));
     this.engine.startGame();
     this.io.to(this.id).emit("game_start");
     this.tickInterval = setInterval(() => this.gameTick(), SERVER_TICK_MS);
@@ -664,7 +777,8 @@ var Room = class {
       })),
       events: this.pendingEvents,
       scores,
-      pickups: engine.pickups
+      pickups: engine.pickups,
+      missiles: engine.missiles
     };
     this.io.to(this.id).emit("tick", payload);
     if (engine.scores.getWinner(SCORE_TO_WIN) !== null) {

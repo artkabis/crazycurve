@@ -30,7 +30,7 @@
 
 ## Aperçu
 
-Les joueurs contrôlent une courbe qui se déplace en continu et laisse une traîne. Toucher une traîne ou un mur = mort. Dernier survivant = point. Premier à **5 points** gagne la partie. Des power-ups apparaissent sur l'arène et modifient les règles du jeu. Des **bots IA** peuvent remplacer n'importe quel joueur humain.
+Les joueurs contrôlent une courbe qui se déplace en continu et laisse une traîne. Toucher une traîne ou un mur = mort. Dernier survivant = point. Premier à **10 points** gagne la partie. Des power-ups apparaissent sur l'arène et modifient les règles du jeu. Des **bots IA** peuvent remplacer n'importe quel joueur humain.
 
 ```
 ┌─────────────────────────────────────────┐
@@ -134,7 +134,7 @@ erase(x, y, r)      → remise à 0 circulaire (power-up ERASE / missile)
 | Collision bitmap | Uint8Array O(1), indépendant de la taille des traînes |
 | Trous aléatoires | Gaps dans la traîne (mécanique tactique) |
 | 2 joueurs local | P1 `← →` · P2 `A D` · même clavier |
-| Rounds & scoring | 5 rounds pour gagner |
+| Rounds & scoring | 10 points pour gagner (SCORE_TO_WIN) |
 
 ### Phase 2 ✅ — Multijoueur en ligne
 
@@ -306,7 +306,7 @@ npm install
 
 ```bash
 npm run dev
-# → http://localhost:5173   Cliquer "LOCAL"
+# → http://localhost:5173   Cliquer "LOCAL (2–6P)"
 # Dans PlayerSetupScene : activer BOT sur les slots voulus, choisir la difficulté
 ```
 
@@ -499,6 +499,7 @@ crazycurve/
 │   │       ├── MissileSystem.ts   # Fire, update, kill curves, erase trail bitmap
 │   │       └── ScoreSystem.ts
 │   ├── renderer/
+│   │   ├── Background.ts          # Fond de l'arène (grille + bordure)
 │   │   ├── TrailLayer.ts          # RenderTexture incrémentale + erase (blendMode)
 │   │   ├── GameRenderer.ts        # IGameState → scène PixiJS, HUD effets, missiles
 │   │   └── PowerUpLayer.ts        # Cercles pulsants animés pour les pickups
