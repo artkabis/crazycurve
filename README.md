@@ -2,7 +2,7 @@
 
 > Multiplayer real-time Curve Fever clone — TypeScript · PixiJS 8 · Socket.io · Node.js
 
-![Phase](https://img.shields.io/badge/phase-3%20%E2%80%93%20Power--ups-blueviolet)
+![Phase](https://img.shields.io/badge/phase-4%20%E2%80%93%20Bots%20%26%20Missiles-orange)
 ![Build](https://img.shields.io/badge/build-passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Node](https://img.shields.io/badge/node-%3E%3D22-green)
@@ -16,9 +16,11 @@
 - [Architecture](#architecture)
 - [Fonctionnalités](#fonctionnalités)
 - [Power-ups](#power-ups)
+- [Bots IA](#bots-ia)
 - [Stack technique](#stack-technique)
 - [Démarrage rapide](#démarrage-rapide)
 - [Mode multijoueur](#mode-multijoueur)
+- [Déploiement Docker](#déploiement-docker)
 - [Déploiement O2Switch](#déploiement-o2switch)
 - [Structure du projet](#structure-du-projet)
 - [Roadmap](#roadmap)
@@ -28,19 +30,19 @@
 
 ## Aperçu
 
-Les joueurs contrôlent une courbe qui se déplace en continu et laisse une traîne. Toucher une traîne ou un mur = mort. Dernier survivant = point. Premier à **5 points** gagne la partie. Des power-ups apparaissent sur l'arène et modifient les règles du jeu.
+Les joueurs contrôlent une courbe qui se déplace en continu et laisse une traîne. Toucher une traîne ou un mur = mort. Dernier survivant = point. Premier à **5 points** gagne la partie. Des power-ups apparaissent sur l'arène et modifient les règles du jeu. Des **bots IA** peuvent remplacer n'importe quel joueur humain.
 
 ```
 ┌─────────────────────────────────────────┐
 │  ···                               ···  │
 │     ╲          ⚡FAST               ╱    │
 │      ╲   P1 ●──────────          ╱      │
-│       ╲    [SHIELD]      ╱ P2   ╱       │
-│        ╲         ⊗ERASE ●──────╱        │
+│       ╲    [SHIELD]    🤖BOT     ╱       │
+│        ╲      🚀FIRE ●──────────╱        │
 │         ──────────────────────          │
-│  P1: FAST  GHOST        P2: REV         │
+│  P1: FAST  GHOST        BOT: HARD       │
 └─────────────────────────────────────────┘
-   P1: ← →      P2: A D      Round 3 / 5
+   P1: ← →      P2: BOT (HARD)    Round 3 / 5
 ```
 
 ---
@@ -55,20 +57,22 @@ graph TD
         UI["DOM — Menus · Lobby · HUD · Effets actifs"]
         PIXI["PixiJS 8 WebGL\nTrailLayer · GameRenderer · PowerUpLayer"]
         ENGINE_C["GameEngine (local)"]
+        BOT["BotController ×N\nRay-cast look-ahead"]
         NET["NetworkManager\nSocket.io-client"]
         AUDIO["AudioManager\nWeb Audio API"]
     end
 
-    subgraph Server["⚙️ Server (Node.js / O2Switch)"]
+    subgraph Server["⚙️ Server (Node.js / Docker)"]
         EXPRESS["Express\nServe dist/ en prod"]
         SIO["Socket.io Server"]
         RM["RoomManager"]
-        ROOM["Room ×N — GameEngine @ 30 Hz\nPowerUpSystem · CollisionSystem"]
+        ROOM["Room ×N — GameEngine @ 30 Hz\nPowerUpSystem · CollisionSystem · MissileSystem"]
     end
 
     UI --> PIXI
     PIXI --> ENGINE_C
     ENGINE_C --> AUDIO
+    BOT --> ENGINE_C
     NET -->|"WebSocket / polling fallback"| SIO
     SIO --> RM --> ROOM
     EXPRESS -->|"dist/ statique"| Client
@@ -85,9 +89,9 @@ sequenceDiagram
     loop Toutes les 33 ms
         C1->>SRV: input { left, right, tick }
         C2->>SRV: input { left, right, tick }
-        SRV->>SRV: engine.update() — collision + power-ups
-        SRV->>C1: tick { players[], pickups[], events[], scores }
-        SRV->>C2: tick { players[], pickups[], events[], scores }
+        SRV->>SRV: engine.update() — collision + power-ups + missiles
+        SRV->>C1: tick { players[], pickups[], missiles[], events[], scores }
+        SRV->>C2: tick { players[], pickups[], missiles[], events[], scores }
     end
     C1->>C1: interpolation + TrailLayer.drawNewPoints() @ 60 fps
     C2->>C2: interpolation + TrailLayer.drawNewPoints() @ 60 fps
@@ -114,7 +118,7 @@ Arena 800×600 → Uint8Array (480 000 octets)
 
 paint(x, y, id, r)  → écriture circulaire rayon r (variable : THIN/THICK)
 check(x, y)         → lecture 1 pixel → collision instantanée
-erase(x, y, r)      → remise à 0 circulaire (power-up ERASE)
+erase(x, y, r)      → remise à 0 circulaire (power-up ERASE / missile)
 ```
 
 ---
@@ -155,8 +159,20 @@ erase(x, y, r)      → remise à 0 circulaire (power-up ERASE)
 | Flèche de direction | Flèche sur la tête pendant le décompte (Curve Fever classique) |
 | Saisie du nom | `NameInputScene` — champ texte, touche Entrée, fallback aléatoire |
 | Scoreboard final | Trié par score, noms réels + couleurs, 👑 gagnant |
-| Sons Web Audio | 7 sons synthétisés — aucun fichier audio requis |
+| Sons Web Audio | 8 sons synthétisés — aucun fichier audio requis |
 | Effets réseau | `erase_zone` · `pickup` propagés dans `TickPayload.events` |
+
+### Phase 4 ✅ — Bots, Missiles, Docker, CI/CD
+
+| Feature | Détail |
+|---|---|
+| Bots IA | Ray-cast look-ahead, 3 niveaux : EASY / MEDIUM / HARD |
+| Bot setup UI | Toggle BOT par joueur dans `PlayerSetupScene`, sélection de difficulté |
+| Missiles | Power-up FIRE — projectile à 3.5× la vitesse, tue au contact, efface la traîne |
+| Missiles réseau | `missiles: MissileSnapshot[]` dans chaque `TickPayload`, `missile_hit` event |
+| Docker | Multi-stage build Node 22 Alpine — image production légère |
+| CI/CD | GitHub Actions : lint + test + `build:all` sur push `main`/`claude/**` |
+| Son missile | `missileHit()` — carré 880 Hz + sawtooth 440 Hz |
 
 ---
 
@@ -176,6 +192,7 @@ Les pickups apparaissent comme des cercles animés (pulsation) avec leur label. 
 | ✦ | **WARP** | Téléportation aléatoire + gap de sécurité | Soi | instant |
 | 🛡 | **SHIELD** | Absorbe 1 collision de traîne, puis se consomme | Soi | 10 s |
 | ⊗ | **ERASE** | Efface traînes bitmap + visuel dans un disque 44 px | Soi | instant |
+| 🚀 | **FIRE** | Lance un missile dans la direction actuelle | Soi | instant |
 
 ### Interactions remarquables
 
@@ -183,6 +200,48 @@ Les pickups apparaissent comme des cercles animés (pulsation) avec leur label. 
 - **SHIELD + REV** : bouclier actif mais contrôles inversés — désorientation totale
 - **ERASE** : l'effacement visuel utilise `blendMode: 'erase'` PixiJS — les pixels deviennent transparents (pas juste masqués)
 - **WARP** : la courbe réapparaît avec un gap temporaire (20 frames) pour éviter l'auto-collision
+- **FIRE** : le missile voyage à 3.5× la vitesse de courbe ; contact direct = mort instantanée ; impact sur une traîne = érase un disque de 10 px sur le bitmap
+
+---
+
+## Bots IA
+
+### Configuration
+
+Dans l'écran de setup (`PlayerSetupScene`), chaque slot joueur dispose d'un bouton **BOT**. Quand il est activé (rouge), les boutons de touches sont remplacés par un sélecteur de difficulté.
+
+```
+┌─ PLAYER 2 ──────────────────────┐
+│  [BOT ✓]  [EASY] [MEDIUM] [HARD]│
+└─────────────────────────────────┘
+```
+
+### Algorithme — Ray-cast look-ahead
+
+Le bot simule N pas devant lui dans 3 directions (tout droit, gauche×3, droite×3 fois le `turnRate`) en appelant `CollisionSystem.checkWall()` et `CollisionSystem.checkTrail()`. Il choisit la direction avec le plus de pas libres.
+
+```
+Difficulté  │ Pas scannés │ Bruit de décision
+────────────┼─────────────┼───────────────────
+EASY        │     12      │     ±25 %
+MEDIUM      │     30      │     ±8 %
+HARD        │     60      │      0 %
+```
+
+Les bots HARD traquent en plus le pickup le plus proche quand la voie droite est dégagée sur 20+ pas.
+
+### Code
+
+```typescript
+// BotController.computeInput() — simplifié
+const straight  = scan(x, y, angle,                 speed, r, collision);
+const leftFree  = scan(x, y, angle - turnRate * 3,  speed, r, collision);
+const rightFree = scan(x, y, angle + turnRate * 3,  speed, r, collision);
+const best = Math.max(straight, leftFree, rightFree);
+if (best === straight && straight > 4) return { left: false, right: false };
+if (leftFree >= rightFree)             return { left: true,  right: false };
+return                                        { left: false, right: true  };
+```
 
 ---
 
@@ -198,6 +257,7 @@ Les pickups apparaissent comme des cercles animés (pulsation) avec leur label. 
 | Pickup standard | Deux bips aigus montants |
 | SHIELD activé | Confirmation harmonique |
 | ERASE | Deux tons descendants |
+| **Impact missile** | **Carré 880 Hz + sawtooth 440 Hz** |
 | Victoire round | Arpège montant 3 notes |
 | Victoire partie | Arpège montant 4 notes |
 
@@ -219,6 +279,8 @@ Les pickups apparaissent comme des cercles animés (pulsation) avec leur label. 
 | Bundle prod | esbuild | 0.25 |
 | Tests | Vitest | 2.x |
 | Qualité | ESLint 9 + Prettier 3 | — |
+| Conteneurisation | Docker (multi-stage) | — |
+| CI/CD | GitHub Actions | — |
 
 ---
 
@@ -236,15 +298,16 @@ npm -v    # >= 10
 ```bash
 git clone https://github.com/artkabis/crazycurve.git
 cd crazycurve
-git checkout claude/curvefever-exploration-H2vUb
+git checkout claude/finalize-project-sZMVX
 npm install
 ```
 
-### Mode local (2 joueurs, même clavier)
+### Mode local (1–6 joueurs, humains et/ou bots)
 
 ```bash
 npm run dev
-# → http://localhost:5173   Cliquer "LOCAL (2P)"
+# → http://localhost:5173   Cliquer "LOCAL"
+# Dans PlayerSetupScene : activer BOT sur les slots voulus, choisir la difficulté
 ```
 
 ### Mode multijoueur (développement)
@@ -261,7 +324,7 @@ npm run dev
 | Joueur | Gauche | Droite |
 |---|---|---|
 | P1 | `←` | `→` |
-| P2 | `A` | `D` |
+| P2 | `A` | `D` (ou BOT) |
 | Online | `←` | `→` (chaque joueur sur sa machine) |
 
 ---
@@ -288,8 +351,8 @@ sequenceDiagram
     C->>C: Lance NetworkGameScene
     loop 30 Hz (serveur) / 60 fps (rendu)
         C->>S: input { left, right, tick }
-        S-->>C: tick { players, pickups, phase, scores, events }
-        C->>C: interpolation lerp + rendu pickups + sons
+        S-->>C: tick { players, pickups, missiles, phase, scores, events }
+        C->>C: interpolation lerp + rendu pickups + missiles + sons
     end
     S-->>C: event game_over → GameOverScene scoreboard
 ```
@@ -309,12 +372,45 @@ socket.on('player_joined', (player: PlayerInfo))
 socket.on('game_start',    ())
 socket.on('tick',          ({
   tick, phase, round, countdown,
-  players: PlayerSnapshot[],   // x, y, angle, trailRadius, ghostTrail, activeEffects
-  pickups: PickupSnapshot[],   // id, x, y, type
-  events: NetGameEvent[],      // player_died | round_over | game_over | erase_zone
-  scores: Record<number, number>
+  players:  PlayerSnapshot[],   // x, y, angle, trailRadius, ghostTrail, activeEffects
+  pickups:  PickupSnapshot[],   // id, x, y, type
+  missiles: MissileSnapshot[],  // id, x, y, angle, ownerId
+  events:   NetGameEvent[],     // player_died | round_over | game_over | erase_zone | missile_hit
+  scores:   Record<number, number>
 }))
 socket.on('error', (message: string))
+```
+
+---
+
+## Déploiement Docker
+
+```bash
+# Construire l'image
+docker build -t crazycurve .
+
+# Lancer (port 3001 exposé)
+docker run -p 3001:3001 crazycurve
+
+# Ouvrir http://localhost:3001
+```
+
+Le `Dockerfile` utilise un **build multi-stage** :
+
+1. `node:22-alpine` builder — `npm ci` + `npm run build:all`
+2. Runtime image — copie uniquement `dist/` et `server/dist/` → image légère
+
+### Docker Compose (optionnel)
+
+```yaml
+services:
+  crazycurve:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
 ```
 
 ---
@@ -356,7 +452,7 @@ NODE_ENV = production
 ```bash
 ssh user@ssh.tonserveur.o2switch.net
 cd ~/crazycurve
-git pull origin claude/curvefever-exploration-H2vUb
+git pull origin claude/finalize-project-sZMVX
 npm install --omit=dev
 npm run build:all
 # Puis : cPanel → Node.js App → Restart
@@ -387,47 +483,57 @@ curl https://game.tondomaine.fr/health
 crazycurve/
 ├── src/                           # Frontend
 │   ├── core/                      # ← Isomorphe client/serveur
-│   │   ├── constants.ts           # Arena, physics, palette 6 joueurs, power-up configs
-│   │   ├── types.ts               # IGameState, CurveRenderData, PowerUpType, GameEvents…
+│   │   ├── constants.ts           # Arena, physics, palette, power-up configs, BotDifficulty
+│   │   ├── types.ts               # IGameState, MissileRenderData, PowerUpType, GameEvents…
 │   │   ├── EventEmitter.ts        # Émetteur générique typé
-│   │   ├── GameEngine.ts          # Machine d'état + PowerUpSystem intégré
+│   │   ├── GameEngine.ts          # Machine d'état + PowerUpSystem + MissileSystem intégrés
+│   │   ├── ai/
+│   │   │   └── BotController.ts   # Ray-cast look-ahead, 3 difficultés (easy/medium/hard)
 │   │   ├── entities/
 │   │   │   ├── Curve.ts           # Physique, gaps, effets actifs, bouclier, téléport
-│   │   │   └── PowerUp.ts         # Entité Pickup (id, position, type)
+│   │   │   ├── PowerUp.ts         # Entité Pickup (id, position, type)
+│   │   │   └── Missile.ts         # Projectile — avance, meurt aux bords de l'arène
 │   │   └── systems/
 │   │       ├── CollisionSystem.ts # Bitmap O(1) — paint / check / erase (radius variable)
 │   │       ├── PowerUpSystem.ts   # Spawn · collecte · application · callbacks événements
+│   │       ├── MissileSystem.ts   # Fire, update, kill curves, erase trail bitmap
 │   │       └── ScoreSystem.ts
 │   ├── renderer/
 │   │   ├── TrailLayer.ts          # RenderTexture incrémentale + erase (blendMode)
-│   │   ├── GameRenderer.ts        # IGameState → scène PixiJS, HUD effets, flèche direction
+│   │   ├── GameRenderer.ts        # IGameState → scène PixiJS, HUD effets, missiles
 │   │   └── PowerUpLayer.ts        # Cercles pulsants animés pour les pickups
 │   ├── audio/
-│   │   └── AudioManager.ts        # Web Audio API — 7 sons synthétisés, unlock sur gesture
+│   │   └── AudioManager.ts        # Web Audio API — 9 sons synthétisés, unlock sur gesture
 │   ├── input/InputManager.ts
 │   ├── network/
-│   │   ├── protocol.ts            # Types Socket.io partagés (TickPayload, snapshots…)
+│   │   ├── protocol.ts            # MissileSnapshot, TickPayload, NetGameEvent (missile_hit)
 │   │   ├── NetworkManager.ts      # Client WS + polling fallback
-│   │   └── NetworkGameState.ts    # IGameState ← ticks serveur + interpolation lerp
+│   │   └── NetworkGameState.ts    # IGameState ← ticks serveur + interpolation lerp + missiles
 │   ├── scenes/
 │   │   ├── MenuScene.ts           # Local / Online
 │   │   ├── NameInputScene.ts      # Saisie du nom avant de rejoindre
-│   │   ├── GameScene.ts           # Mode local (ticker PixiJS)
-│   │   ├── NetworkGameScene.ts    # Mode online — ticks · interpolation · sons · erase
+│   │   ├── PlayerSetupScene.ts    # Setup joueurs — BOT toggle + sélecteur difficulté
+│   │   ├── GameScene.ts           # Mode local — ticker PixiJS + injection inputs bots
+│   │   ├── NetworkGameScene.ts    # Mode online — ticks · interpolation · sons · erase · missiles
 │   │   ├── LobbyScene.ts          # Salle d'attente
 │   │   └── GameOverScene.ts       # Scoreboard complet trié, 2–6 joueurs
-│   ├── app.ts                     # Orchestrateur principal + câblage audio/events
+│   ├── app.ts                     # Orchestrateur principal + câblage audio/events + bots
 │   ├── main.ts
 │   └── style.css
 │
 ├── server/
 │   ├── src/
 │   │   ├── game/
-│   │   │   ├── Room.ts            # Boucle 30 Hz, GameEngine, events → TickPayload
+│   │   │   ├── Room.ts            # Boucle 30 Hz, GameEngine, missiles → TickPayload
 │   │   │   └── RoomManager.ts     # Registre rooms, auto-start à MIN_PLAYERS
 │   │   └── server.ts              # Express + Socket.io + dist/ en prod + /health
 │   └── tsconfig.json
 │
+├── .github/
+│   └── workflows/
+│       └── ci.yml                 # lint + test + build:all sur push main/claude/**
+│
+├── Dockerfile                     # Multi-stage Node 22 Alpine — builder + runtime
 ├── index.html
 ├── package.json                   # Scripts : dev, build:all, start, server:dev
 ├── tsconfig.json
@@ -454,11 +560,13 @@ gantt
     HUD effets + sons + UX        :done, 2026-04, 1w
     Interpolation réseau          :done, 2026-04, 3d
     section Phase 4
-    Missiles + bots IA            :active, 2026-05, 1w
-    Comptes + OAuth               :2026-05, 2w
+    Bots IA (easy/medium/hard)    :done, 2026-05, 3d
+    Missiles power-up             :done, 2026-05, 3d
+    Docker + CI/CD                :done, 2026-05, 2d
+    section Phase 5
+    Comptes + OAuth               :2026-06, 2w
     ELO + leaderboard             :2026-06, 1w
-    Delta compression ticks       :2026-06, 1w
-    Docker + CI/CD                :2026-07, 1w
+    Delta compression ticks       :2026-07, 1w
     Bêta publique                 :milestone, 2026-08, 0d
 ```
 
@@ -469,7 +577,21 @@ gantt
 <details>
 <summary><strong>Le jeu fonctionne-t-il sans serveur ?</strong></summary>
 
-Oui. Le mode **LOCAL (2P)** tourne entièrement dans le navigateur — moteur, collision, power-ups, sons. Seul le mode **ONLINE** nécessite le serveur Node.js.
+Oui. Le mode **LOCAL** tourne entièrement dans le navigateur — moteur, collision, power-ups, bots IA, sons. Seul le mode **ONLINE** nécessite le serveur Node.js.
+
+</details>
+
+<details>
+<summary><strong>Comment ajouter des bots en mode local ?</strong></summary>
+
+Dans l'écran `PlayerSetupScene`, chaque joueur dispose d'un bouton **BOT**. Cliquer pour basculer le slot en bot. Choisir ensuite la difficulté : **EASY** (scan 12 pas, bruit ±25 %), **MEDIUM** (30 pas, ±8 %), **HARD** (60 pas, aucun bruit + tracking pickup).
+
+</details>
+
+<details>
+<summary><strong>Les bots fonctionnent-ils en mode multijoueur ?</strong></summary>
+
+Les bots sont une feature **client-side uniquement** (mode local). En mode ONLINE, chaque humain connecté contrôle sa courbe depuis sa machine — le serveur ne gère pas de bots.
 
 </details>
 
@@ -481,9 +603,16 @@ Oui. Le mode **LOCAL (2P)** tourne entièrement dans le navigateur — moteur, c
 </details>
 
 <details>
+<summary><strong>Comment fonctionne le missile ?</strong></summary>
+
+Le power-up **FIRE** (rouge, label « FIRE ») se collecte et lance immédiatement un projectile dans la direction de la courbe. Le missile voyage à 3.5× la vitesse de courbe. Il tue toute courbe touchée directement. S'il percute une traîne bitmap, il efface un disque de 10 px avant de disparaître. Il disparaît aux bords de l'arène.
+
+</details>
+
+<details>
 <summary><strong>Combien de rooms simultanées sur O2Switch ?</strong></summary>
 
-Chaque room consomme ~480 KB (bitmap collision) + CPU d'une boucle 30 Hz. Sur un mutualisé O2Switch, prévoir 20–50 rooms max. Pour plus, passer sur un VPS dédié.
+Chaque room consomme ~480 KB (bitmap collision) + CPU d'une boucle 30 Hz. Sur un mutualisé O2Switch, prévoir 20–50 rooms max. Pour plus, passer sur un VPS dédié ou utiliser Docker.
 
 </details>
 
@@ -511,24 +640,20 @@ Les navigateurs bloquent `AudioContext` avant toute interaction utilisateur. `Au
 touch ~/crazycurve/tmp/restart.txt
 
 # Ou via cPanel → Setup Node.js App → Restart
+
+# Ou Docker
+docker restart crazycurve
 ```
-
-</details>
-
-<details>
-<summary><strong>Comment ajouter un 3e joueur en local ?</strong></summary>
-
-Le mode local est limité à P1+P2 (même clavier). Pour 3+ joueurs, utiliser le mode **ONLINE** en local : lancer `npm run server:dev` + ouvrir plusieurs onglets sur `localhost:5173` → chaque onglet saisit un nom et rejoint la même room automatiquement.
 
 </details>
 
 <details>
 <summary><strong>Les données sont-elles persistées ?</strong></summary>
 
-Non — tout est en mémoire (perdu au restart). La Phase 4 introduira un backend persistant pour comptes, ELO et historique de parties.
+Non — tout est en mémoire (perdu au restart). La Phase 5 introduira un backend persistant pour comptes, ELO et historique de parties.
 
 </details>
 
 ---
 
-<sub>CrazyCurve · TypeScript · PixiJS 8 · Socket.io · Vite · Node.js 22</sub>
+<sub>CrazyCurve · TypeScript · PixiJS 8 · Socket.io · Vite · Node.js 22 · Docker</sub>
