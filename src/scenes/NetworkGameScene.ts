@@ -46,14 +46,13 @@ export class NetworkGameScene {
   private readonly onTick = (payload: TickPayload): void => {
     this.state.applyTick(payload);
 
-    // Phase-change sounds
     if (payload.phase !== this.prevPhase) {
       if (payload.phase === 'countdown') {
         [0, 1000, 2000].forEach((ms) => setTimeout(() => this.audio.countdown(), ms));
       }
-      if (payload.phase === 'playing') this.audio.go();
+      if (payload.phase === 'playing')    this.audio.go();
       if (payload.phase === 'round_over') this.audio.roundWin();
-      if (payload.phase === 'game_over') this.audio.gameWin();
+      if (payload.phase === 'game_over')  this.audio.gameWin();
       this.prevPhase = payload.phase;
     }
 
@@ -76,6 +75,9 @@ export class NetworkGameScene {
     if (event.type === 'erase_zone') {
       this.trailLayer.erase(event.x, event.y, event.radius);
       this.audio.erase();
+    }
+    if (event.type === 'missile_hit') {
+      this.audio.missileHit();
     }
   }
 

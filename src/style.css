@@ -22,7 +22,6 @@ body {
 #app {
   position: relative;
   line-height: 0;
-  /* Constrain to 4:3 within viewport, max 800 × 600 */
   width: min(100vw, calc(100vh * 800 / 600), 800px);
 }
 
@@ -33,7 +32,6 @@ body {
   aspect-ratio: 800 / 600;
 }
 
-/* UI overlay sits on top of the canvas */
 #ui {
   position: absolute;
   inset: 0;
@@ -236,7 +234,7 @@ body {
   align-items: center;
   gap: 8px;
   width: 100%;
-  max-width: 360px;
+  max-width: 400px;
 }
 
 .setup-label {
@@ -294,7 +292,7 @@ body {
 .setup-player-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   font-size: 14px;
 }
 
@@ -335,6 +333,61 @@ body {
 @keyframes pulse-border {
   from { border-color: #44aaff; box-shadow: 0 0 6px #44aaff44; }
   to   { border-color: #1a3a55; box-shadow: none; }
+}
+
+/* ── Bot toggle & difficulty ────────────────────────────────────── */
+.setup-bot-toggle {
+  background: transparent;
+  border: 1px solid #2a2a2a;
+  color: #444;
+  font-family: inherit;
+  font-size: 10px;
+  padding: 4px 8px;
+  cursor: pointer;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  transition: all 0.1s;
+  white-space: nowrap;
+}
+
+.setup-bot-toggle:hover {
+  border-color: #888;
+  color: #aaa;
+}
+
+.setup-bot-toggle.active {
+  background: #ff4466;
+  border-color: #ff4466;
+  color: #fff;
+}
+
+.setup-diff-group {
+  display: flex;
+  gap: 4px;
+}
+
+.setup-diff-btn {
+  background: transparent;
+  border: 1px solid #1e1e1e;
+  color: #333;
+  font-family: inherit;
+  font-size: 9px;
+  padding: 3px 7px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  transition: all 0.1s;
+}
+
+.setup-diff-btn:hover {
+  border-color: #555;
+  color: #888;
+}
+
+.setup-diff-btn.active {
+  background: #ff4466;
+  border-color: #ff4466;
+  color: #fff;
 }
 
 /* ── Online mode selection ───────────────────────────────────────────── */

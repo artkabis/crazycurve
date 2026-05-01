@@ -1,5 +1,5 @@
 import { PLAYER_PALETTE } from '../core/constants.ts';
-import type { LocalPlayerSetup } from '../core/constants.ts';
+import type { LocalPlayerSetup, BotDifficulty } from '../core/constants.ts';
 
 function displayKey(key: string): string {
   const map: Record<string, string> = {
@@ -28,6 +28,7 @@ export class PlayerSetupScene {
     this.setups = PLAYER_PALETTE.map((p) => ({
       id: p.id, name: p.name, color: p.color, colorHex: p.colorHex,
       leftKey: p.leftKey, rightKey: p.rightKey,
+      isBot: false, botDifficulty: 'medium' as BotDifficulty,
     }));
 
     this.el = document.createElement('div');
@@ -73,12 +74,28 @@ export class PlayerSetupScene {
         return;
       }
       if (t.classList.contains('setup-key')) {
+        const s = this.setups.find((x) => x.id === parseInt(t.dataset.player!));
+        if (s?.isBot) return;
         this.listening = {
           playerId: parseInt(t.dataset.player!),
           side: t.dataset.side as 'left' | 'right',
         };
         this.render();
         window.addEventListener('keydown', this.onKeyDown, { capture: true });
+        return;
+      }
+      if (t.classList.contains('setup-bot-toggle')) {
+        this.stopListening();
+        const s = this.setups.find((x) => x.id === parseInt(t.dataset.player!));
+        if (s) s.isBot = !s.isBot;
+        this.render();
+        return;
+      }
+      if (t.classList.contains('setup-diff-btn')) {
+        this.stopListening();
+        const s = this.setups.find((x) => x.id === parseInt(t.dataset.player!));
+        if (s) s.botDifficulty = t.dataset.diff as BotDifficulty;
+        this.render();
         return;
       }
     });
@@ -96,14 +113,26 @@ export class PlayerSetupScene {
     ).join('');
 
     const playerRows = this.setups.slice(0, this.playerCount).map((s) => {
-      const lisL = this.listening?.playerId === s.id && this.listening?.side === 'left';
-      const lisR = this.listening?.playerId === s.id && this.listening?.side === 'right';
+      const isBot = s.isBot ?? false;
+      const diff  = s.botDifficulty ?? 'medium';
+      const lisL  = this.listening?.playerId === s.id && this.listening?.side === 'left';
+      const lisR  = this.listening?.playerId === s.id && this.listening?.side === 'right';
+
+      const keysOrDiff = isBot
+        ? `<span class="setup-diff-group">${
+            (['easy', 'medium', 'hard'] as BotDifficulty[]).map((d) =>
+              `<button class="setup-diff-btn${d === diff ? ' active' : ''}" data-player="${s.id}" data-diff="${d}">${d.toUpperCase()}</button>`
+            ).join('')
+          }</span>`
+        : `<button class="setup-key${lisL ? ' listening' : ''}" data-player="${s.id}" data-side="left">${lisL ? '…' : displayKey(s.leftKey) || '?'}</button>
+           <button class="setup-key${lisR ? ' listening' : ''}" data-player="${s.id}" data-side="right">${lisR ? '…' : displayKey(s.rightKey) || '?'}</button>`;
+
       return `
         <div class="setup-player-row">
           <span class="setup-dot" style="color:${s.colorHex}">●</span>
           <span class="setup-pname" style="color:${s.colorHex}">${s.name}</span>
-          <button class="setup-key${lisL ? ' listening' : ''}" data-player="${s.id}" data-side="left">${lisL ? '…' : displayKey(s.leftKey) || '?'}</button>
-          <button class="setup-key${lisR ? ' listening' : ''}" data-player="${s.id}" data-side="right">${lisR ? '…' : displayKey(s.rightKey) || '?'}</button>
+          ${keysOrDiff}
+          <button class="setup-bot-toggle${isBot ? ' active' : ''}" data-player="${s.id}">BOT</button>
         </div>
       `;
     }).join('');
