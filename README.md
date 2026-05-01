@@ -71,19 +71,18 @@ Client ←——— WebSocket / HTTP polling ———→ Serveur
 ```mermaid
 sequenceDiagram
     participant C1 as Client P1
-    participant SRV as Serveur 30 Hz
+    participant SRV as Server Room (30 Hz)
     participant C2 as Client P2
 
     loop Toutes les 33 ms
         C1->>SRV: input { left, right, tick }
         C2->>SRV: input { left, right, tick }
-        SRV->>SRV: engine.update()
-        Note right of SRV: collision + power-ups + missiles
-        SRV-->>C1: tick { players, pickups, missiles, events, scores }
-        SRV-->>C2: tick { players, pickups, missiles, events, scores }
+        SRV->>SRV: engine.update() — collision + power-ups + missiles
+        SRV->>C1: tick { players[], pickups[], missiles[], events[], scores }
+        SRV->>C2: tick { players[], pickups[], missiles[], events[], scores }
     end
-    C1->>C1: lerp 60 fps + rendu
-    C2->>C2: lerp 60 fps + rendu
+    C1->>C1: interpolation + TrailLayer.drawNewPoints() @ 60 fps
+    C2->>C2: interpolation + TrailLayer.drawNewPoints() @ 60 fps
 ```
 
 ### Interpolation réseau
@@ -336,25 +335,22 @@ sequenceDiagram
     participant C as Client
     participant S as Serveur
 
-    U->>C: Clic ONLINE
-    C->>C: NameInputScene - saisie du nom
-    C->>S: connect() + join { name }
+    U->>C: Clic "ONLINE"
+    C->>C: NameInputScene — saisie du nom
+    C->>S: connect()
+    S-->>C: connected
+    C->>S: join { name }
     S-->>C: room_joined { roomId, yourPlayerId }
-    C->>C: LobbyScene - attente
-
-    Note over S: 2e joueur rejoint
-
+    C->>C: Affiche LobbyScene
+    Note over S: 2e joueur rejoint → auto-start
     S-->>C: game_start
-    C->>C: NetworkGameScene
-
-    loop 30 Hz serveur / 60 fps rendu
+    C->>C: Lance NetworkGameScene
+    loop 30 Hz (serveur) / 60 fps (rendu)
         C->>S: input { left, right, tick }
-        S-->>C: tick { players, pickups, missiles, scores, events }
-        C->>C: lerp + rendu + sons
+        S-->>C: tick { players, pickups, missiles, phase, scores, events }
+        C->>C: interpolation lerp + rendu pickups + missiles + sons
     end
-
-    S-->>C: event game_over
-    C->>C: GameOverScene scoreboard
+    S-->>C: event game_over → GameOverScene scoreboard
 ```
 
 ### Protocole réseau
