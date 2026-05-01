@@ -14,6 +14,7 @@ import { NameInputScene } from './scenes/NameInputScene.ts';
 import { NetworkGameScene } from './scenes/NetworkGameScene.ts';
 import { PlayerSetupScene } from './scenes/PlayerSetupScene.ts';
 import { NetworkManager } from './network/NetworkManager.ts';
+import { BotController } from './core/ai/BotController.ts';
 import type { PlayerInfo } from './network/protocol.ts';
 
 export class App {
@@ -50,7 +51,6 @@ export class App {
 
     document.addEventListener('pointerdown', () => this.audio.unlock(), { once: true });
 
-    // Toggle negative (inverted) colour mode with I key
     window.addEventListener('keydown', (e) => {
       if (e.key === 'i' || e.key === 'I') this.toggleNegativeMode();
     });
@@ -82,16 +82,22 @@ export class App {
     this.activeOverlay?.unmount();
     this.activeOverlay = undefined;
 
-    // Tear down previous local game — stop ticker, drain listeners, remove PixiJS objects
     this.localScene?.stop();
     this.localEngine?.removeAllListeners();
     this.localRenderer?.destroy();
 
     const ids = players.map((p) => p.id);
-    this.localEngine = new GameEngine(ids, scoreToWin);
+    this.localEngine   = new GameEngine(ids, scoreToWin);
     this.localRenderer = new GameRenderer(this.pixiApp, this.trailLayer, ids, scoreToWin);
+
+    const bots = new Map<number, BotController>();
+    for (const p of players) {
+      if (p.isBot) bots.set(p.id, new BotController(p.id, p.botDifficulty ?? 'medium'));
+    }
+
     this.localScene = new GameScene(
       this.pixiApp, this.localEngine, this.input, this.trailLayer, this.localRenderer, players,
+      bots,
     );
 
     this.localEngine.on('phaseChange', (phase) => {
@@ -107,12 +113,13 @@ export class App {
     this.localEngine.on('playerDied', () => this.audio.die());
 
     this.localEngine.on('pickup', (type) => {
-      if (type === 'eraser') this.audio.erase();
+      if (type === 'eraser')      this.audio.erase();
       else if (type === 'shield') this.audio.shield();
-      else this.audio.pickup();
+      else                        this.audio.pickup();
     });
 
     this.localEngine.on('eraseZone', (x, y, r) => this.trailLayer.erase(x, y, r));
+    this.localEngine.on('missileHit', () => this.audio.missileHit());
 
     this.localEngine.on('gameOver', (winnerId) => {
       this.localScene!.stop();
@@ -158,11 +165,9 @@ export class App {
     connecting.remove();
     this.network.join(playerName, roomId);
 
-    // Shared across room_joined + game_start closures for reconnection flow
     let reconnectOverlay: HTMLDivElement | null = null;
 
     this.network.on('room_joined', (payload) => {
-      // Reconnection succeeded — server restored our slot, hide overlay and continue
       if (payload.isReconnect) {
         reconnectOverlay?.remove();
         reconnectOverlay = null;
@@ -217,7 +222,6 @@ export class App {
           this.showOverlay(scene);
         });
 
-        // ── Reconnection overlay (shown only during live game) ──
         this.network.onDisconnect(() => {
           reconnectOverlay = document.createElement('div');
           reconnectOverlay.className = 'overlay reconnecting';

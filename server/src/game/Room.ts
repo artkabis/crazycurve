@@ -15,6 +15,7 @@ import type {
   TickPayload,
   NetGameEvent,
   PickupSnapshot,
+  MissileSnapshot,
 } from '../../../src/network/protocol.ts';
 
 type IoServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -54,7 +55,6 @@ export class Room {
   get isRunning(): boolean { return this.tickInterval !== null; }
 
   addPlayer(socket: RoomSocket, name: string): PlayerInfo | null {
-    // ── Reconnection path (game already running) ───────────────
     if (this.isRunning) {
       for (const [oldSid, player] of this.players) {
         if (player.disconnectedAt !== undefined && player.info.name === name) {
@@ -68,10 +68,9 @@ export class Room {
           return player.info;
         }
       }
-      return null; // Running game, no matching disconnected slot
+      return null;
     }
 
-    // ── Normal join ────────────────────────────────────────────
     if (this.isFull || this.nextId > MAX_PLAYERS) return null;
 
     const palette = getPalette(this.nextId);
@@ -122,10 +121,16 @@ export class Room {
     const playerIds = [...this.players.values()].map((p) => p.info.id);
     this.engine = new GameEngine(playerIds, SCORE_TO_WIN, SERVER_TICK_RATE);
 
-    this.engine.on('playerDied', (id) => this.pendingEvents.push({ type: 'player_died', playerId: id }));
-    this.engine.on('roundOver',  (id) => this.pendingEvents.push({ type: 'round_over',  winnerId: id ?? null }));
-    this.engine.on('gameOver',   (id) => this.pendingEvents.push({ type: 'game_over',   winnerId: id }));
-    this.engine.on('eraseZone',  (x, y, r) => this.pendingEvents.push({ type: 'erase_zone', x, y, radius: r }));
+    this.engine.on('playerDied', (id) =>
+      this.pendingEvents.push({ type: 'player_died', playerId: id }));
+    this.engine.on('roundOver', (id) =>
+      this.pendingEvents.push({ type: 'round_over', winnerId: id ?? null }));
+    this.engine.on('gameOver', (id) =>
+      this.pendingEvents.push({ type: 'game_over', winnerId: id }));
+    this.engine.on('eraseZone', (x, y, r) =>
+      this.pendingEvents.push({ type: 'erase_zone', x, y, radius: r }));
+    this.engine.on('missileHit', (ownerId, targetId, x, y) =>
+      this.pendingEvents.push({ type: 'missile_hit', ownerId, targetId, x, y }));
 
     this.engine.startGame();
     this.io.to(this.id).emit('game_start');
@@ -173,19 +178,20 @@ export class Room {
       round:     engine.round,
       countdown: engine.countdown,
       players:   engine.curves.map((c) => ({
-        id:           c.id,
-        x:            c.x,
-        y:            c.y,
-        angle:        c.angle,
-        alive:        c.alive,
-        inGap:        c.inGap,
-        trailRadius:  c.trailRadius,
-        ghostTrail:   c.ghostTrail,
+        id:            c.id,
+        x:             c.x,
+        y:             c.y,
+        angle:         c.angle,
+        alive:         c.alive,
+        inGap:         c.inGap,
+        trailRadius:   c.trailRadius,
+        ghostTrail:    c.ghostTrail,
         activeEffects: [...c.activeEffects],
       })),
-      events:  this.pendingEvents,
+      events:   this.pendingEvents,
       scores,
-      pickups: engine.pickups as PickupSnapshot[],
+      pickups:  engine.pickups as PickupSnapshot[],
+      missiles: engine.missiles as MissileSnapshot[],
     };
 
     this.io.to(this.id).emit('tick', payload);

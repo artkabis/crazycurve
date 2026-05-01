@@ -1,7 +1,6 @@
 export class AudioManager {
   private ctx: AudioContext | null = null;
 
-  /** Must be called in response to a user gesture to unlock Web Audio. */
   unlock(): void {
     if (this.ctx) return;
     this.ctx = new AudioContext();
@@ -52,6 +51,11 @@ export class AudioManager {
   erase(): void {
     this.tone(300, 0.08, 0.18, 'square');
     setTimeout(() => this.tone(200, 0.12, 0.14, 'square'), 70);
+  }
+
+  missileHit(): void {
+    this.tone(880, 0.04, 0.28, 'square');
+    setTimeout(() => this.tone(440, 0.15, 0.22, 'sawtooth'), 40);
   }
 
   roundWin(): void {

@@ -32,6 +32,7 @@ export class GameRenderer {
 
   private readonly particles: Particle[] = [];
   private readonly particleGraphics: Graphics;
+  private readonly missileGraphics: Graphics;
   private readonly prevAlive = new Map<number, boolean>();
 
   private readonly nameTags = new Map<number, Text>();
@@ -74,6 +75,9 @@ export class GameRenderer {
 
     this.particleGraphics = new Graphics();
     headsLayer.addChild(this.particleGraphics);
+
+    this.missileGraphics = new Graphics();
+    headsLayer.addChild(this.missileGraphics);
 
     for (const id of playerIds) {
       const g = new Graphics();
@@ -150,7 +154,6 @@ export class GameRenderer {
     this.roundLabel.y = ARENA_HEIGHT - 6;
     hudLayer.addChild(this.roundLabel);
 
-    // Phase overlay
     this.dimOverlay = new Graphics();
     this.dimOverlay.rect(0, 0, ARENA_WIDTH, ARENA_HEIGHT).fill({ color: 0x000000, alpha: 0.6 });
 
@@ -169,7 +172,6 @@ export class GameRenderer {
     this.centerText.x = ARENA_WIDTH / 2;
     this.centerText.y = ARENA_HEIGHT / 2;
 
-    // "ROUND X" label shown during countdown
     this.roundCountdownLabel = new Text({
       text: '',
       style: new TextStyle({
@@ -185,7 +187,6 @@ export class GameRenderer {
     this.roundCountdownLabel.y = ARENA_HEIGHT / 2 + 58;
     this.roundCountdownLabel.visible = false;
 
-    // Theme name label fades out when playing starts
     this.themeLabel = new Text({
       text: '',
       style: new TextStyle({
@@ -234,6 +235,27 @@ export class GameRenderer {
     this.syncEffects(state);
     this.syncOverlay(state);
     this.powerUpLayer.update(state.pickups);
+    this.syncMissiles(state);
+  }
+
+  private syncMissiles(state: IGameState): void {
+    this.missileGraphics.clear();
+    for (const m of state.missiles) {
+      const palette = PLAYER_PALETTE.find((p) => p.id === m.ownerId);
+      const color = palette?.color ?? 0xffffff;
+      const cos = Math.cos(m.angle);
+      const sin = Math.sin(m.angle);
+      const tailLen = 16;
+      const tx = m.x - cos * tailLen;
+      const ty = m.y - sin * tailLen;
+      this.missileGraphics
+        .moveTo(tx, ty).lineTo(m.x, m.y)
+        .stroke({ color: 0xffffff, width: 3, alpha: 0.5 });
+      this.missileGraphics
+        .moveTo(tx, ty).lineTo(m.x, m.y)
+        .stroke({ color, width: 2, alpha: 1 });
+      this.missileGraphics.circle(m.x, m.y, 3.5).fill({ color: 0xffffff });
+    }
   }
 
   private syncHeads(state: IGameState): void {
@@ -361,7 +383,6 @@ export class GameRenderer {
     const { phase } = state;
     const theme = getTheme(state.round);
 
-    // Tick and fade the theme label
     if (this.themeLabelTimer > 0) {
       this.themeLabelTimer--;
       const alpha = this.themeLabelTimer > 40 ? 1 : this.themeLabelTimer / 40;

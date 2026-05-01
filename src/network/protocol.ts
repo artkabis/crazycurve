@@ -26,11 +26,20 @@ export interface PickupSnapshot {
   type: PowerUpType;
 }
 
+export interface MissileSnapshot {
+  id:      number;
+  x:       number;
+  y:       number;
+  angle:   number;
+  ownerId: number;
+}
+
 export type NetGameEvent =
   | { type: 'player_died'; playerId: number }
   | { type: 'round_over'; winnerId: number | null }
   | { type: 'game_over'; winnerId: number }
-  | { type: 'erase_zone'; x: number; y: number; radius: number };
+  | { type: 'erase_zone'; x: number; y: number; radius: number }
+  | { type: 'missile_hit'; ownerId: number; targetId: number | null; x: number; y: number };
 
 export interface TickPayload {
   tick: number;
@@ -41,6 +50,7 @@ export interface TickPayload {
   events: NetGameEvent[];
   scores: Record<number, number>;
   pickups: PickupSnapshot[];
+  missiles: MissileSnapshot[];
 }
 
 export interface RoomJoinedPayload {

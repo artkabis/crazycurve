@@ -1,12 +1,10 @@
 import { TRAIL_RADIUS, SERVER_TICK_MS } from '../core/constants.ts';
-import type { GamePhase, IGameState, CurveRenderData, Vec2, PickupRenderData, PowerUpType } from '../core/types.ts';
+import type {
+  GamePhase, IGameState, CurveRenderData, Vec2,
+  PickupRenderData, PowerUpType, MissileRenderData,
+} from '../core/types.ts';
 import type { TickPayload } from './protocol.ts';
 
-/**
- * Shadow curve with client-side linear interpolation between server ticks.
- * x/y/angle are getters that return the smoothly interpolated value based on
- * elapsed time since the last received tick — gives 60fps fluidity from 30Hz ticks.
- */
 class ShadowCurve implements CurveRenderData {
   private prevX = 0;
   private prevY = 0;
@@ -94,6 +92,7 @@ export class NetworkGameState implements IGameState {
   private readonly shadowMap = new Map<number, ShadowCurve>();
   private readonly scoreMap = new Map<number, number>();
   private _pickups: PickupRenderData[] = [];
+  private _missiles: MissileRenderData[] = [];
 
   constructor(playerIds: readonly number[]) {
     for (const id of playerIds) {
@@ -108,6 +107,10 @@ export class NetworkGameState implements IGameState {
 
   get pickups(): readonly PickupRenderData[] {
     return this._pickups;
+  }
+
+  get missiles(): readonly MissileRenderData[] {
+    return this._missiles;
   }
 
   getScore(playerId: number): number {
@@ -142,12 +145,12 @@ export class NetworkGameState implements IGameState {
         snap.activeEffects,
       );
 
-      // Trail painted at authoritative server position, not interpolated
       shadow.newPoints =
         snap.alive && !snap.inGap && !snap.ghostTrail ? [{ x: snap.x, y: snap.y }] : [];
     }
 
     this._pickups = payload.pickups;
+    this._missiles = payload.missiles ?? [];
   }
 
   clearNewPoints(): void {
